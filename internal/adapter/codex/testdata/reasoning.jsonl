@@ -1,0 +1,8 @@
+{"type":"thread.started","thread_id":"00000000-0000-7000-8000-000000000001"}
+{"type":"item.completed","item":{"id":"item_0","type":"error","message":"`[features].codex_hooks` is deprecated. Use `[features].hooks` instead. (Enable it with `--enable hooks` or `[features].hooks` in config.toml. See https://developers.openai.com/codex/config-basic#feature-flags for details.)"}}
+{"type":"item.completed","item":{"id":"item_1","type":"error","message":"Model metadata for `fake-1` not found. Defaulting to fallback metadata; this can degrade performance and cause issues."}}
+{"type":"turn.started"}
+{"type":"item.completed","item":{"id":"item_2","type":"reasoning","text":"The user wants a greeting. Keep it short."}}
+{"type":"item.completed","item":{"id":"item_3","type":"agent_message","text":"Hello from the fixture."}}
+{"type":"item.completed","item":{"id":"item_4","type":"agent_message","text":"Second paragraph."}}
+{"type":"turn.completed","usage":{"input_tokens":1200,"cached_input_tokens":1024,"cache_write_input_tokens":0,"output_tokens":42,"reasoning_output_tokens":12}}
