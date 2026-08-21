@@ -42,6 +42,51 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: go test -race ./...
 
+      # Publishes the coverage number to a gist that shields.io renders as the
+      # README badge. Two deliberate choices here:
+      #
+      #   - `gh api` rather than a badge action. This workflow can create
+      #     releases, so every third-party action in it is a way to reach that
+      #     permission; a PATCH of one gist is not worth the exposure.
+      #   - Never fatal. A missing secret, a rate limit or a gist hiccup must
+      #     not block a release, so the step exits 0 on anything unexpected and
+      #     carries continue-on-error as a second line of defence. A stale
+      #     badge is a much smaller problem than an unshippable tag.
+      #
+      # -coverpkg=./... measures the whole module, not each package against its
+      # own tests: packages like internal/ir carry no test files of their own
+      # but are exercised heavily by the frontends, and per-package counting
+      # scores that as zero.
+      - name: Publish the coverage badge
+        if: matrix.os == 'ubuntu-latest'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GIST_TOKEN }}
+          GIST_ID: fb5b6041e3db32f9765ecaba9969e868
+        run: |
+          if [ -z "${GH_TOKEN}" ]; then
+            echo "GIST_TOKEN is not set; skipping the coverage badge."
+            exit 0
+          fi
+          go test -coverpkg=./... -coverprofile=coverage.out ./... >/dev/null
+          pct=$(go tool cover -func=coverage.out | tail -1 | awk '{print $3}' | tr -d '%')
+          echo "total coverage: ${pct}%"
+          whole=${pct%%.*}
+          if   [ "$whole" -ge 85 ]; then color=brightgreen
+          elif [ "$whole" -ge 70 ]; then color=green
+          elif [ "$whole" -ge 55 ]; then color=yellowgreen
+          elif [ "$whole" -ge 40 ]; then color=yellow
+          else                           color=orange
+          fi
+          # The gist holds a shields.io endpoint document, so the badge JSON is
+          # itself a string inside the PATCH body.
+          badge=$(jq -nc --arg m "${pct}%" --arg c "$color" \
+            '{schemaVersion: 1, label: "coverage", message: $m, color: $c}')
+          jq -nc --arg b "$badge" \
+            '{files: {"agent2api-coverage.json": {content: $b}}}' \
+            | gh api "gists/${GIST_ID}" --method PATCH --input - >/dev/null
+          echo "badge updated: ${pct}% (${color})"
+
   release:
     needs: test
     runs-on: ubuntu-latest
