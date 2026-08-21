@@ -1,0 +1,30 @@
+# Gateway configuration for the conformance suite.
+#
+# The only backend is the scripted mock (compiled in by `-tags conformance`), so
+# every outcome the suite asserts on is reproducible and costs nothing: no CLI,
+# no account, no tokens. A bearer key is set so the 401 path is exercised too,
+# and the keepalive interval is short enough that the "slow" variant crosses it.
+#
+# The real CLIs are pointed at binaries that do not exist, so probing skips them
+# and the run cannot depend on which agent CLIs the machine happens to have.
+
+server:
+  host: 127.0.0.1
+  port: 8799
+  api_key: "sk-conformance"
+  heartbeat_interval: 1
+  request_timeout: 60
+  idle_timeout: 30
+
+log:
+  level: warn
+
+adapters:
+  claude-code:
+    binary: /nonexistent/claude
+  codex:
+    binary: /nonexistent/codex
+  cursor:
+    binary: /nonexistent/cursor-agent
+  mock:
+    binary: mock            # unused: the mock backend spawns nothing

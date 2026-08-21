@@ -1,0 +1,13 @@
+{"type":"system","subtype":"init","apiKeySource":"login","cwd":"/tmp/agent2api-cursor-2f8c1d","session_id":"00000000-0000-4000-8000-000000000001","model":"Auto","permissionMode":"default"}
+{"type":"user","message":{"role":"user","content":[{"type":"text","text":"Reply with exactly: Same chunk."}]},"session_id":"00000000-0000-4000-8000-000000000001"}
+{"type":"thinking","subtype":"delta","text":"The response will begin","session_id":"00000000-0000-4000-8000-000000000001","timestamp_ms":1787220017557}
+{"type":"thinking","subtype":"delta","text":" with \"REDACTED\" and contain","session_id":"00000000-0000-4000-8000-000000000001","timestamp_ms":1787220017827}
+{"type":"thinking","subtype":"delta","text":" exactly \"Same chunk.\"","session_id":"00000000-0000-4000-8000-000000000001","timestamp_ms":1787220018096}
+{"type":"thinking","subtype":"delta","text":"\n\nThe explicit instruction","session_id":"00000000-0000-4000-8000-000000000001","timestamp_ms":1787220020548}
+{"type":"thinking","subtype":"delta","text":" to reply with exactly","session_id":"00000000-0000-4000-8000-000000000001","timestamp_ms":1787220020549}
+{"type":"thinking","subtype":"delta","text":" \"Same chunk.\" takes","session_id":"00000000-0000-4000-8000-000000000001","timestamp_ms":1787220020549}
+{"type":"thinking","subtype":"delta","text":" precedence over the","session_id":"00000000-0000-4000-8000-000000000001","timestamp_ms":1787220020550}
+{"type":"thinking","subtype":"delta","text":" \"REDACTED\" greeting rule.","session_id":"00000000-0000-4000-8000-000000000001","timestamp_ms":1787220020550}
+{"type":"thinking","subtype":"completed","session_id":"00000000-0000-4000-8000-000000000001","timestamp_ms":1787220020550}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Same chunk."}]},"session_id":"00000000-0000-4000-8000-000000000001"}
+{"type":"result","subtype":"success","duration_ms":8326,"duration_api_ms":8326,"is_error":false,"result":"Same chunk.","session_id":"00000000-0000-4000-8000-000000000001","request_id":"00000000-0000-4000-8000-000000000002","usage":{"inputTokens":15242,"outputTokens":225,"cacheReadTokens":512,"cacheWriteTokens":0}}
