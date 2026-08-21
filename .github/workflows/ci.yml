@@ -1,0 +1,92 @@
+# Runs the tests on every push to main and every pull request targeting it.
+#
+# This is the workflow the README's CI badge reports on, and the reason it
+# exists separately from release.yml: a badge fed by a tag-triggered workflow
+# says "the last release built", which is frozen between releases and tells a
+# reader nothing about the state of main. release.yml still runs the same matrix
+# before publishing — that gate is about what ships, this one is about what is
+# on main right now.
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      # Report every platform, not just the first to break: which ones fail is
+      # the useful part when a failure is platform-specific.
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Test
+        run: go test ./...
+
+      # The race detector needs a C toolchain, which is dependable on Linux and
+      # fiddly elsewhere; one platform running it is enough to catch a data race.
+      - name: Test with the race detector
+        if: matrix.os == 'ubuntu-latest'
+        run: go test -race ./...
+
+      # Publishes the coverage number to a gist that shields.io renders as the
+      # README badge. Three deliberate choices here:
+      #
+      #   - Only on pushes to main. A pull request must not move the badge:
+      #     its head is not what the README describes, and on a fork the secret
+      #     is not available anyway.
+      #   - `gh api` rather than a badge action, to keep a third-party action
+      #     out of a workflow that holds a token.
+      #   - Never fatal. A missing secret, a rate limit or a gist hiccup exits
+      #     0, and continue-on-error covers the rest: a stale badge must not
+      #     turn main red.
+      #
+      # -coverpkg=./... measures the whole module, not each package against its
+      # own tests: packages like internal/ir carry no test files of their own
+      # but are exercised heavily by the frontends, and per-package counting
+      # scores that as zero.
+      - name: Publish the coverage badge
+        if: matrix.os == 'ubuntu-latest' && github.event_name == 'push'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GIST_TOKEN }}
+          GIST_ID: fb5b6041e3db32f9765ecaba9969e868
+        run: |
+          if [ -z "${GH_TOKEN}" ]; then
+            echo "GIST_TOKEN is not set; skipping the coverage badge."
+            exit 0
+          fi
+          go test -coverpkg=./... -coverprofile=coverage.out ./... >/dev/null
+          pct=$(go tool cover -func=coverage.out | tail -1 | awk '{print $3}' | tr -d '%')
+          echo "total coverage: ${pct}%"
+          whole=${pct%%.*}
+          if   [ "$whole" -ge 85 ]; then color=brightgreen
+          elif [ "$whole" -ge 70 ]; then color=green
+          elif [ "$whole" -ge 55 ]; then color=yellowgreen
+          elif [ "$whole" -ge 40 ]; then color=yellow
+          else                           color=orange
+          fi
+          # The gist holds a shields.io endpoint document, so the badge JSON is
+          # itself a string inside the PATCH body.
+          badge=$(jq -nc --arg m "${pct}%" --arg c "$color" \
+            '{schemaVersion: 1, label: "coverage", message: $m, color: $c}')
+          jq -nc --arg b "$badge" \
+            '{files: {"agent2api-coverage.json": {content: $b}}}' \
+            | gh api "gists/${GIST_ID}" --method PATCH --input - >/dev/null
+          echo "badge updated: ${pct}% (${color})"

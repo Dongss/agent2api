@@ -2,7 +2,7 @@
 
 [![license](https://img.shields.io/github/license/Dongss/agent2api)](LICENSE)
 [![version](https://img.shields.io/github/v/release/Dongss/agent2api?include_prereleases&label=version)](https://github.com/Dongss/agent2api/releases/latest)
-[![release](https://github.com/Dongss/agent2api/actions/workflows/release.yml/badge.svg)](https://github.com/Dongss/agent2api/actions/workflows/release.yml)
+[![CI](https://github.com/Dongss/agent2api/actions/workflows/ci.yml/badge.svg)](https://github.com/Dongss/agent2api/actions/workflows/ci.yml)
 ![coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/Dongss/fb5b6041e3db32f9765ecaba9969e868/raw/agent2api-coverage.json)
 
 Expose local agent CLIs (Claude Code, Cursor, Codex, and more) as OpenAI- and Anthropic-compatible LLM APIs over HTTP.
