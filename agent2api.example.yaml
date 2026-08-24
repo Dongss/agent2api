@@ -1,0 +1,58 @@
+# agent2api configuration — every key, with its built-in default.
+#
+# Copy what you need; anything you leave out keeps the default below. The file
+# is optional: with none at all, agent2api serves whichever agent CLIs it finds
+# installed and logged in on this machine.
+#
+# Pass it with -c/--config: there are no default locations, so a file is only
+# read when you name one. A flag overrides the same setting here, and unknown
+# keys are a startup error, so typos fail loudly.
+
+server:
+  host: 127.0.0.1          # binding beyond loopback requires api_key
+  port: 8055
+  api_key: ""              # static bearer key; empty = no auth (loopback only)
+  # Durations are a number of seconds, with no unit: 600 is ten minutes.
+  request_timeout: 600     # absolute cap on one request
+  idle_timeout: 120        # kill the CLI if it goes this long without output
+  queue_timeout: 30        # wait for a concurrency slot this long, then 429
+  heartbeat_interval: 15   # SSE keepalive while the CLI is quiet; 0 disables
+  shutdown_timeout: 30     # how long a shutdown waits for in-flight requests
+  max_concurrency: 4       # concurrent CLI processes per adapter; each request is one process
+  scratch_dir: ""          # root for per-request workdirs; empty = OS temp dir
+
+log:
+  level: info              # debug | info | warn | error
+  format: text             # text | json
+  file: ""                 # empty = stderr
+
+# Backends are auto-detected. Each CLI below is probed at startup, and the ones
+# that are installed and logged in start serving — there is nothing to switch
+# on. `agent2api doctor` shows what was found and why anything was skipped.
+#
+# Models are not listed here. Ask for "<adapter>" to get the CLI's own default
+# model, or "<adapter>:<model>" to pass a model through; the CLI is the
+# authority on which names it accepts. `claude-code:opus`, `codex:gpt-5.6-sol`
+# and `cursor:composer` all work without appearing in this file.
+adapters:
+  claude-code:
+    binary: claude          # PATH lookup, or an absolute path
+    # `replace` sends only the caller's system message, so the backend answers as
+    # a plain LLM; `append` keeps the CLI's own agent preamble and adds to it.
+    system_prompt_mode: replace   # replace | append
+    extra_args: []          # appended verbatim to argv, for flag drift
+    env: {}                 # extra env vars; nothing else is inherited
+
+  codex:
+    binary: codex
+    sandbox: read-only      # read-only | workspace-write | danger-full-access
+    extra_args: []
+    env: {}
+
+  cursor:
+    binary: cursor-agent
+    # Both modes are read-only: ask answers the question, plan replies with a
+    # plan for it instead.
+    mode: ask               # ask | plan
+    extra_args: []
+    env: {}

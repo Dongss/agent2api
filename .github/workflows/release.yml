@@ -1,0 +1,76 @@
+# Publishes a release when a version tag is pushed:
+#
+#   git tag v0.1.0 && git push origin v0.1.0
+#
+# The tests run on all three released platforms first, and the release only
+# happens if every one of them passes. That gating is the point: the runner
+# supervises subprocesses differently on Windows than on unix, and a release
+# that ships a Windows binary should have run the Windows tests.
+#
+# ci.yml runs the same matrix on pushes to main. The duplication is deliberate:
+# that one reports on main, this one gates what is published.
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      # Report every platform, not just the first to break: which ones fail is
+      # the useful part when a failure is platform-specific.
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Test
+        run: go test ./...
+
+      # The race detector needs a C toolchain, which is dependable on Linux and
+      # fiddly elsewhere; one platform running it is enough to catch a data race.
+      - name: Test with the race detector
+        if: matrix.os == 'ubuntu-latest'
+        run: go test -race ./...
+
+  release:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      # GoReleaser creates the release and uploads assets to it.
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # GoReleaser derives the version and changelog from git history, which
+          # a shallow clone does not have.
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # The tag that triggered the run, not whatever `git describe` picks:
+          # when several tags point at the same commit its answer is arbitrary,
+          # and a release built under the wrong version collides with the assets
+          # already published under it.
+          GORELEASER_CURRENT_TAG: ${{ github.ref_name }}

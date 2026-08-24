@@ -28,5 +28,57 @@ go.work.sum
 .env
 
 # Editor/IDE
-# .idea/
-# .vscode/
+.idea/
+.vscode/
+
+# Compiled binary (module name, built by `go build` at repo root)
+/agent2api
+/bin/
+/dist/
+/build/
+
+# Delve / VS Code Go debug binaries
+__debug_bin*
+debug
+debug.test
+
+# Secrets / certs
+*.pem
+*.key
+*.crt
+*.p12
+credentials.json
+*.local.yaml
+*.local.yml
+*.local.toml
+*.local.json
+
+# Logs & runtime
+*.log
+logs/
+tmp/
+*.pid
+*.sock
+
+# Local Claude Code overrides
+.claude/settings.local.json
+CLAUDE.local.md
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+Desktop.ini
+
+# Editor swap / backup files
+*~
+*.swp
+*.swo
+*.bak
+*.orig
+
+# conformance suite virtualenv
+.venv-conformance/

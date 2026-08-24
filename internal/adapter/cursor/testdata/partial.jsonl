@@ -1,0 +1,20 @@
+{"type":"system","subtype":"init","apiKeySource":"login","cwd":"/tmp/agent2api-cursor-2f8c1d","session_id":"00000000-0000-4000-8000-000000000001","model":"Auto","permissionMode":"default"}
+{"type":"user","message":{"role":"user","content":[{"type":"text","text":"Reply with exactly: Hello from the fixture."}]},"session_id":"00000000-0000-4000-8000-000000000001"}
+{"type":"thinking","subtype":"delta","text":"I will reply with exactly","session_id":"00000000-0000-4000-8000-000000000001","timestamp_ms":1787219962810}
+{"type":"thinking","subtype":"delta","text":" \"Hello from the fixture.\"","session_id":"00000000-0000-4000-8000-000000000001","timestamp_ms":1787219962813}
+{"type":"thinking","subtype":"delta","text":" I will also address","session_id":"00000000-0000-4000-8000-000000000001","timestamp_ms":1787219962813}
+{"type":"thinking","subtype":"delta","text":" the user as \"REDACTED\" at","session_id":"00000000-0000-4000-8000-000000000001","timestamp_ms":1787219962813}
+{"type":"thinking","subtype":"delta","text":" the beginning.","session_id":"00000000-0000-4000-8000-000000000001","timestamp_ms":1787219962814}
+{"type":"thinking","subtype":"delta","text":"\n\nThe user's explicit","session_id":"00000000-0000-4000-8000-000000000001","timestamp_ms":1787219962814}
+{"type":"thinking","subtype":"delta","text":" instruction takes precedence.","session_id":"00000000-0000-4000-8000-000000000001","timestamp_ms":1787219962814}
+{"type":"thinking","subtype":"delta","text":" I will reply with exactly","session_id":"00000000-0000-4000-8000-000000000001","timestamp_ms":1787219962814}
+{"type":"thinking","subtype":"delta","text":" that phrase and nothing","session_id":"00000000-0000-4000-8000-000000000001","timestamp_ms":1787219962814}
+{"type":"thinking","subtype":"delta","text":" else.","session_id":"00000000-0000-4000-8000-000000000001","timestamp_ms":1787219962814}
+{"type":"thinking","subtype":"completed","session_id":"00000000-0000-4000-8000-000000000001","timestamp_ms":1787219962814}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Hello"}]},"session_id":"00000000-0000-4000-8000-000000000001","timestamp_ms":1787219962815}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":" from"}]},"session_id":"00000000-0000-4000-8000-000000000001","timestamp_ms":1787219962815}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":" the"}]},"session_id":"00000000-0000-4000-8000-000000000001","timestamp_ms":1787219962815}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":" fixture"}]},"session_id":"00000000-0000-4000-8000-000000000001","timestamp_ms":1787219962815}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"."}]},"session_id":"00000000-0000-4000-8000-000000000001","timestamp_ms":1787219962815}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Hello from the fixture."}]},"session_id":"00000000-0000-4000-8000-000000000001"}
+{"type":"result","subtype":"success","duration_ms":10340,"duration_api_ms":10340,"is_error":false,"result":"Hello from the fixture.","session_id":"00000000-0000-4000-8000-000000000001","request_id":"00000000-0000-4000-8000-000000000002","usage":{"inputTokens":13196,"outputTokens":87,"cacheReadTokens":2560,"cacheWriteTokens":0}}

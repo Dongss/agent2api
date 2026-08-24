@@ -1,0 +1,91 @@
+# GoReleaser builds the release archives and publishes them to GitHub Releases.
+#
+#   git tag v0.1.0 && git push origin v0.1.0
+#
+# is the whole release: .github/workflows/release.yml takes it from there. To try
+# it without tagging anything:
+#
+#   goreleaser release --snapshot --clean
+#
+# The archive names here are the contract with scripts/install.sh and
+# scripts/install.ps1 — those scripts build the same string to know what to
+# download, so a change to name_template has to be made in three places.
+version: 2
+
+project_name: agent2api
+
+before:
+  hooks:
+    # Download, not tidy: a release must not rewrite the tree it is building.
+    - go mod download
+
+builds:
+  - id: agent2api
+    main: ./cmd/agent2api
+    binary: agent2api
+    # No cgo anywhere in the tree, so the Linux builds come out static and run
+    # on any distribution.
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      # The same variable scripts/build.sh stamps, and the same spelling: .Tag
+      # keeps the leading "v", so `agent2api version` reports v0.1.0 rather than
+      # 0.1.0 whichever way the binary was built.
+      - -s -w -X github.com/Dongss/agent2api/internal/version.Version={{ .Tag }}
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    # A stable mtime makes the archives reproducible across reruns of the same
+    # tag.
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  - id: agent2api
+    ids:
+      - agent2api
+    # agent2api_v0.1.0_darwin_arm64.tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Tag }}_{{ .Os }}_{{ .Arch }}"
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    files:
+      - LICENSE
+      - README.md
+
+checksum:
+  # The install scripts verify the downloaded archive against this file.
+  name_template: checksums.txt
+  algorithm: sha256
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-snapshot"
+
+changelog:
+  use: github
+  sort: asc
+  # Short shas, and no author: a changelog does not need to publish the commit
+  # author's email address, which the default format does.
+  abbrev: 7
+  format: "{{ .SHA }}: {{ .Message }}"
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+
+release:
+  github:
+    owner: Dongss
+    name: agent2api
+  # A tag like v0.2.0-rc1 is published as a prerelease, so the install scripts —
+  # which follow /releases/latest — keep pointing at the last stable one.
+  prerelease: auto
