@@ -24,7 +24,8 @@ a local CLI invocation. Every request is independent: the whole conversation is
 replayed into a fresh CLI process, with the CLI's own tools disabled.
 
 Start the gateway with "agent2api serve"; "agent2api doctor" reports which agent
-CLIs this machine can serve.`
+CLIs this machine can serve, and "agent2api update" updates agent2api to the
+latest version.`
 
 func newRootCmd() *cobra.Command {
 	root := &cobra.Command{
@@ -50,7 +51,7 @@ func newRootCmd() *cobra.Command {
 	root.SetHelpTemplate("agent2api " + version.String() + "\n\n" +
 		root.HelpTemplate() + "\n" + config.ConfigFileHelp() + "\n")
 
-	root.AddCommand(newServeCmd(), newDoctorCmd(), newConfigCmd(), newVersionCmd())
+	root.AddCommand(newServeCmd(), newDoctorCmd(), newConfigCmd(), newUpdateCmd(), newVersionCmd())
 	return root
 }
 

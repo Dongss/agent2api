@@ -13,13 +13,14 @@ scripts/conformance/run.sh # drives both APIs with the real vendor SDKs
 ## Layout
 
 ```
-cmd/agent2api/      serve, doctor, config print, version
+cmd/agent2api/      serve, doctor, config print, update, version
 internal/frontend/  openai/, anthropic/, sse/   — wire formats
 internal/ir/        the protocol-neutral middle: Request, Event, Error
 internal/adapter/   claudecode/, codex/, cursor/ — argv + output parsing
 internal/adapter/agentcli/  what those three share: probing, run loop, redaction
 internal/runner/    subprocess lifecycle, deadlines, process trees
 internal/config/    schema, Go defaults, strict decode, flags
+internal/selfupdate/  `update`: fetch, verify and swap in a release binary
 ```
 
 No frontend imports a backend and no backend imports a frontend; everything
@@ -40,6 +41,11 @@ meets at `ir`.
   defaults live in Go (`defaults.go`), and `agent2api.example.yaml` documents
   every key — a test fails if the two drift.
 - **`config print` and the logs redact anything that can hold a credential.**
+- **`update` verifies or refuses.** The install scripts warn and continue when
+  `checksums.txt` is missing — reasonable when creating a file that did not
+  exist. `update` overwrites a binary the user already trusts, so an absent or
+  mismatched checksum is fatal. Asset names must stay in step with
+  `scripts/build.sh` and both installers.
 - **The golden transcripts are recordings.** Fixtures under
   `internal/adapter/*/testdata/` came from real CLI runs, so a CLI upgrade that
   changes event shapes fails the tests instead of corrupting answers. Re-record

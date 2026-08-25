@@ -101,6 +101,7 @@ agent2api                      # print help; the bare command starts nothing
 agent2api serve [flags]        # start the gateway
 agent2api doctor [flags]       # probe every configured adapter, print a table
 agent2api config print [flags] # print the effective merged config and exit
+agent2api update               # update agent2api to the latest version
 agent2api version
 ```
 
