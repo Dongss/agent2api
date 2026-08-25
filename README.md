@@ -177,8 +177,10 @@ responses:
 - `internal/adapter/codex/testdata/` — recorded from real `codex exec --json`
   runs, including a failing one.
 - `internal/adapter/cursor/testdata/` — recorded from real `cursor-agent` runs,
-  one per streaming shape the CLI has. See that directory's `PROVENANCE.md` for
-  the edits it carries.
+  one per streaming shape the CLI has.
+
+Each directory carries a `PROVENANCE.md` naming the CLI version the fixtures came
+from, the argv used, the scrubbing applied, and how to re-record.
 
 Identifiers in all three are synthetic, including one buried in a thinking
 signature: the recordings are real, but there is no reason to publish the ids of

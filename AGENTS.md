@@ -49,7 +49,10 @@ meets at `ir`.
 - **The golden transcripts are recordings.** Fixtures under
   `internal/adapter/*/testdata/` came from real CLI runs, so a CLI upgrade that
   changes event shapes fails the tests instead of corrupting answers. Re-record
-  rather than edit to fit; see `cursor/testdata/PROVENANCE.md` for the form.
+  rather than edit to fit, and record which CLI version a fixture came from:
+  every `testdata/` directory carries a `PROVENANCE.md` with the argv used, the
+  scrubbing applied, and how to re-record. A shape the CLI does not emit belongs
+  in a constructed transcript in the test file, not in `testdata/`.
 
 ## Conventions
 
