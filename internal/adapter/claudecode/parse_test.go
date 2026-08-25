@@ -67,8 +67,9 @@ func collect(events []ir.Event) (text, thinking string, done *ir.Event, failure 
 }
 
 // TestGoldenTranscript replays a recording of real `claude --output-format
-// stream-json` output. If a CLI upgrade changes the event shapes, this fails
-// loudly instead of quietly returning empty responses.
+// stream-json` output (Claude Code 2.1.231; see testdata/PROVENANCE.md). If a
+// CLI upgrade changes the event shapes, this fails loudly instead of quietly
+// returning empty responses.
 func TestGoldenTranscript(t *testing.T) {
 	events := replay(t, readFixture(t, "simple.stream.jsonl"), nil)
 	text, thinking, done, failure := collect(events)

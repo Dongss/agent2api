@@ -67,16 +67,21 @@ func collect(events []ir.Event) (text, thinking string, done *ir.Event, failure 
 }
 
 // TestGoldenTranscript replays a recording of real `codex exec --json` output
-// (codex-cli 0.148.0). If a CLI upgrade changes the event shapes, this fails
-// loudly instead of quietly returning empty responses.
+// (codex-cli 0.149.1; see testdata/PROVENANCE.md). If a CLI upgrade changes the
+// event shapes, this fails loudly instead of quietly returning empty responses.
+//
+// The prose is asserted by ends and length rather than in full: the point is
+// that the message survives intact, and a 632-byte paragraph inline would bury
+// that. Truncation, double-counting and a dropped item all still fail here.
 func TestGoldenTranscript(t *testing.T) {
 	text, thinking, done, failure := collect(replay(t, readFixture(t, "simple.jsonl"), nil))
 
 	if failure != nil {
 		t.Fatalf("unexpected error event: %v", failure)
 	}
-	if want := "Hello from the fixture."; text != want {
-		t.Errorf("text = %q, want %q", text, want)
+	if !strings.HasPrefix(text, "The sea stretches endlessly beneath the ") ||
+		!strings.HasSuffix(text, "ht open and swallow you whole.") || len(text) != 632 {
+		t.Errorf("text = %d bytes starting %q", len(text), truncate(text, 40))
 	}
 	if thinking != "" {
 		t.Errorf("this run had no reasoning items, got %q", thinking)
@@ -87,9 +92,16 @@ func TestGoldenTranscript(t *testing.T) {
 	if done.StopReason != ir.StopEndTurn {
 		t.Errorf("stop reason = %q, want end_turn", done.StopReason)
 	}
-	if done.Usage == nil || done.Usage.InputTokens != 181 || done.Usage.OutputTokens != 7 {
+	if done.Usage == nil || done.Usage.InputTokens != 12840 || done.Usage.OutputTokens != 134 {
 		t.Errorf("usage = %+v", done.Usage)
 	}
+}
+
+func truncate(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n] + "…"
 }
 
 // The same run also carries two non-fatal "error" items — deprecation warnings
@@ -110,18 +122,21 @@ func TestWarningItemsAreNotFatal(t *testing.T) {
 	}
 }
 
-// TestReasoningTranscript covers a run with a reasoning item and more than one
-// assistant message, both recorded from the real CLI.
+// TestReasoningTranscript covers a recorded run that carries a reasoning item
+// and reports cached input tokens, which is where the usage split gets
+// interesting. Multiple assistant messages in one turn are covered separately
+// by TestMessagesInOneTurnAreJoined: the CLI did not produce that shape in any
+// run recorded here, so it is asserted from a constructed transcript instead.
 func TestReasoningTranscript(t *testing.T) {
 	text, thinking, done, failure := collect(replay(t, readFixture(t, "reasoning.jsonl"), nil))
 
 	if failure != nil {
 		t.Fatalf("unexpected error event: %v", failure)
 	}
-	if want := "Hello from the fixture.\n\nSecond paragraph."; text != want {
-		t.Errorf("text = %q, want the messages joined as paragraphs (%q)", text, want)
+	if want := "Hello from the fixture."; text != want {
+		t.Errorf("text = %q, want %q", text, want)
 	}
-	if !strings.Contains(thinking, "The user wants a greeting") {
+	if !strings.Contains(thinking, "repeat a specific phrase") {
 		t.Errorf("reasoning not surfaced: %q", thinking)
 	}
 	if done == nil || done.Usage == nil {
@@ -129,17 +144,20 @@ func TestReasoningTranscript(t *testing.T) {
 	}
 	// Codex counts cached tokens inside input_tokens; the split must add back up.
 	u := done.Usage
-	if u.InputTokens != 176 || u.CacheReadInputTokens != 1024 || u.OutputTokens != 42 {
+	if u.InputTokens != 1957 || u.CacheReadInputTokens != 10880 || u.OutputTokens != 22 {
 		t.Errorf("usage = %+v, want cached tokens split out of the input count", u)
 	}
-	if u.InputTokens+u.CacheReadInputTokens+u.CacheCreationInputTokens != 1200 {
+	if u.InputTokens+u.CacheReadInputTokens+u.CacheCreationInputTokens != 12837 {
 		t.Errorf("usage = %+v, want the parts to sum to the reported input_tokens", u)
 	}
 }
 
-// TestFailedTurn replays a real failure: a workspace with no credit left.
+// TestFailedTurn replays a real failure: an account with no quota left. The
+// 0.148.0 recording this replaced said "out of credits" where 0.149.1 says
+// "Quota exceeded" — classify matches on "quota"/"billing", so the reworded
+// message still lands on the same code.
 func TestFailedTurn(t *testing.T) {
-	_, _, done, failure := collect(replay(t, readFixture(t, "out-of-credits.jsonl"), nil))
+	_, _, done, failure := collect(replay(t, readFixture(t, "quota-exceeded.jsonl"), nil))
 	if done != nil {
 		t.Error("a failed turn must not be reported as done")
 	}
@@ -149,7 +167,7 @@ func TestFailedTurn(t *testing.T) {
 	if failure.Code != ir.CodeUpstreamUnavailable {
 		t.Errorf("code = %s, want %s", failure.Code, ir.CodeUpstreamUnavailable)
 	}
-	if !strings.Contains(failure.Detail, "out of credits") {
+	if !strings.Contains(failure.Detail, "Quota exceeded") {
 		t.Errorf("the CLI's own explanation should survive: %+v", failure)
 	}
 }
@@ -302,5 +320,89 @@ func TestUnknownLinesAreIgnored(t *testing.T) {
 	}
 	if text != "ok" || done == nil {
 		t.Errorf("text = %q, done = %+v", text, done)
+	}
+}
+
+// The transcripts below are constructed, not recorded: codex-cli 0.149.1 emits
+// neither shape (see testdata/PROVENANCE.md). They pin behaviour the parser
+// already promises, so a CLI that starts emitting either one fails here rather
+// than silently changing what callers get.
+
+// TestMessagesInOneTurnAreJoined covers a turn carrying more than one
+// agent_message. A recorded run used to show this; the CLI stopped producing it,
+// but the parser still has to join rather than keep only the first.
+func TestMessagesInOneTurnAreJoined(t *testing.T) {
+	lines := []string{
+		`{"type":"thread.started","thread_id":"00000000-0000-7000-8000-000000000001"}`,
+		`{"type":"turn.started"}`,
+		`{"type":"item.completed","item":{"id":"item_0","type":"agent_message","text":"First paragraph."}}`,
+		`{"type":"item.completed","item":{"id":"item_1","type":"agent_message","text":"Second paragraph."}}`,
+		`{"type":"turn.completed","usage":{"input_tokens":10,"output_tokens":2}}`,
+	}
+	text, _, done, failure := collect(replay(t, lines, nil))
+	if failure != nil {
+		t.Fatalf("unexpected error event: %v", failure)
+	}
+	if done == nil {
+		t.Fatal("no done event")
+	}
+	if want := "First paragraph.\n\nSecond paragraph."; text != want {
+		t.Errorf("text = %q, want the messages joined as paragraphs (%q)", text, want)
+	}
+}
+
+// TestPartialItemDoesNotShadowTheCompletedOne guards the dedup in parser.item.
+//
+// Items are keyed by id and the first non-empty text wins, which is right when
+// item.started arrives empty and item.completed carries the whole message. It
+// would be wrong if a future CLI put *partial* text on item.updated: taking the
+// partial and marking the id seen would drop the rest of the answer, and a
+// truncated answer that reports success is the one failure mode this package
+// exists to prevent. This test documents which of the two the parser does.
+func TestPartialItemDoesNotShadowTheCompletedOne(t *testing.T) {
+	lines := []string{
+		`{"type":"thread.started","thread_id":"00000000-0000-7000-8000-000000000001"}`,
+		`{"type":"turn.started"}`,
+		`{"type":"item.started","item":{"id":"item_0","type":"agent_message","text":""}}`,
+		`{"type":"item.completed","item":{"id":"item_0","type":"agent_message","text":"The whole answer."}}`,
+		`{"type":"turn.completed","usage":{"input_tokens":10,"output_tokens":3}}`,
+	}
+	text, _, done, failure := collect(replay(t, lines, nil))
+	if failure != nil {
+		t.Fatalf("unexpected error event: %v", failure)
+	}
+	if done == nil {
+		t.Fatal("no done event")
+	}
+	// An empty item.started must not consume the id.
+	if want := "The whole answer."; text != want {
+		t.Errorf("text = %q, want %q: an empty item.started swallowed the completed item", text, want)
+	}
+}
+
+// TestPartialItemTextWouldTruncate pins a known limitation rather than a
+// promise. If a future codex-cli puts *partial* text on item.updated, the
+// first-non-empty-text-wins dedup keeps the fragment and drops the rest — a
+// truncated answer reported as a success, which is exactly what this package is
+// supposed to make impossible.
+//
+// codex-cli 0.149.1 emits only item.completed, so nothing hits this today. The
+// test exists so the day that changes, it shows up here as a decision to make
+// (buffer per id until turn.completed, or emit deltas) instead of as silently
+// clipped answers in production.
+func TestPartialItemTextWouldTruncate(t *testing.T) {
+	lines := []string{
+		`{"type":"thread.started","thread_id":"00000000-0000-7000-8000-000000000001"}`,
+		`{"type":"turn.started"}`,
+		`{"type":"item.updated","item":{"id":"item_0","type":"agent_message","text":"The whole"}}`,
+		`{"type":"item.completed","item":{"id":"item_0","type":"agent_message","text":"The whole answer."}}`,
+		`{"type":"turn.completed","usage":{"input_tokens":10,"output_tokens":3}}`,
+	}
+	text, _, _, _ := collect(replay(t, lines, nil))
+	if text == "The whole answer." {
+		t.Fatal("the parser now handles partial item text: drop this test and cover it as behaviour instead")
+	}
+	if text != "The whole" {
+		t.Errorf("text = %q; the fragment-wins behaviour this test documents has changed", text)
 	}
 }
