@@ -200,6 +200,6 @@ func notFound(w http.ResponseWriter, r *http.Request) {
 	writeError(w, r, &ir.Error{
 		Code: ir.CodeInvalidRequest,
 		Message: "unknown endpoint " + r.Method + " " + r.URL.Path +
-			"; agent2api serves POST /v1/chat/completions, POST /v1/messages and GET /v1/models",
+			"; agent2api serves POST /v1/chat/completions, POST /v1/messages, POST /v1/responses and GET /v1/models",
 	})
 }

@@ -225,6 +225,127 @@ def openai_cases(suite: Suite, base_url: str, api_key: str) -> None:
         run(name, case)
 
 
+def responses_cases(suite: Suite, base_url: str, api_key: str) -> None:
+    client = openai.OpenAI(base_url=f"{base_url}/v1", api_key=api_key, max_retries=0, timeout=TIMEOUT)
+    run = lambda name, case: suite.run(f"responses: {name}", case)  # noqa: E731
+
+    def response() -> None:
+        r = client.responses.create(model="mock:ok", input="hi")
+        assert r.object == "response", r.object
+        assert r.status == "completed", r.status
+        assert r.id.startswith("resp_"), r.id
+        # output_text is the SDK's own accessor; it only works if the item and
+        # content-part shapes are right.
+        assert r.output_text == "Mock reply: ok.", repr(r.output_text)
+        assert r.output[-1].type == "message", r.output[-1].type
+        assert r.output[-1].role == "assistant", r.output[-1].role
+        # 11 fresh + 3 cached input tokens, 5 out.
+        assert r.usage.input_tokens == 14, r.usage
+        assert r.usage.input_tokens_details.cached_tokens == 3, r.usage
+        assert r.usage.output_tokens == 5, r.usage
+
+    def store_is_reported_false() -> None:
+        # The caller asked for storage and did not get it; the answer says so
+        # rather than leaving a later retrieval to fail mysteriously.
+        r = client.responses.create(model="mock:ok", input="hi", store=True)
+        assert r.store is False, r.store
+
+    def instructions_are_the_system_prompt() -> None:
+        r = client.responses.create(model="mock:ok", instructions="be terse", input="hi")
+        assert r.output_text == "Mock reply: ok.", repr(r.output_text)
+
+    def input_items() -> None:
+        r = client.responses.create(model="mock:ok", input=[
+            {"role": "developer", "content": "be terse"},
+            {"role": "user", "content": [{"type": "input_text", "text": "hi"}]},
+            {"role": "assistant", "content": [{"type": "output_text", "text": "hello"}]},
+            {"role": "user", "content": "again"},
+        ])
+        assert r.status == "completed", r.status
+
+    def reasoning_is_its_own_item() -> None:
+        r = client.responses.create(model="mock:thinking", input="hi")
+        kinds = [i.type for i in r.output]
+        assert kinds == ["reasoning", "message"], kinds
+        assert r.output[0].summary[0].text, r.output[0].summary
+
+    def empty_answer() -> None:
+        r = client.responses.create(model="mock:empty", input="hi")
+        assert r.output_text == "", repr(r.output_text)
+        assert r.output[-1].type == "message", r.output[-1].type
+
+    def streaming() -> None:
+        # The SDK's accumulator is the point: it rebuilds the response from the
+        # events, so it fails if an index, an id or a part shape is off.
+        text, seq = "", []
+        with client.responses.stream(model="mock:ok", input="hi") as s:
+            for ev in s:
+                seq.append(getattr(ev, "sequence_number", None))
+                if ev.type == "response.output_text.delta":
+                    text += ev.delta
+            final = s.get_final_response()
+        assert text == "Mock reply: ok.", repr(text)
+        assert final.output_text == text, (final.output_text, text)
+        assert final.status == "completed", final.status
+        assert seq == list(range(len(seq))), seq[:8]
+
+    def streaming_thinking() -> None:
+        reasoning = ""
+        with client.responses.stream(model="mock:thinking", input="hi") as s:
+            for ev in s:
+                if ev.type == "response.reasoning_summary_text.delta":
+                    reasoning += ev.delta
+            final = s.get_final_response()
+        assert reasoning, "no reasoning deltas"
+        assert [i.type for i in final.output] == ["reasoning", "message"], final.output
+
+    def streaming_survives_a_keepalive() -> None:
+        with client.responses.stream(model="mock:slow", input="hi") as s:
+            final = s.get_final_response()
+        assert final.output_text == "Mock reply: sorry for the wait.", repr(final.output_text)
+
+    def unknown_model() -> None:
+        expect_error(openai.NotFoundError, lambda: client.responses.create(model="nope", input="hi"),
+                     status=404, message="not available")
+
+    def refusals() -> None:
+        for name, kwargs in [
+            ("tools", {"tools": [{"type": "function", "name": "f", "parameters": {}}]}),
+            ("tool_choice", {"tool_choice": "auto"}),
+            ("previous_response_id", {"previous_response_id": "resp_1"}),
+            ("include", {"include": ["reasoning.encrypted_content"]}),
+            ("structured output", {"text": {"format": {"type": "json_schema", "name": "x", "schema": {}}}}),
+        ]:
+            expect_error(openai.BadRequestError,
+                         lambda k=kwargs: client.responses.create(model="mock:ok", input="hi", **k),
+                         status=400)
+
+    def crash_mid_stream() -> None:
+        # Frames have already gone out, so the failure travels as events. The
+        # SDK surfaces it as an exception either way.
+        expect_error(openai.APIError, lambda: list(client.responses.create(
+            model="mock:crash", input="hi", stream=True)))
+
+    def bad_key() -> None:
+        wrong = openai.OpenAI(base_url=f"{base_url}/v1", api_key="sk-wrong", max_retries=0, timeout=TIMEOUT)
+        expect_error(openai.AuthenticationError,
+                     lambda: wrong.responses.create(model="mock:ok", input="hi"), status=401)
+
+    run("response", response)
+    run("store reported false", store_is_reported_false)
+    run("instructions", instructions_are_the_system_prompt)
+    run("input items", input_items)
+    run("reasoning is its own item", reasoning_is_its_own_item)
+    run("empty answer", empty_answer)
+    run("streaming", streaming)
+    run("streaming thinking", streaming_thinking)
+    run("streaming survives a keepalive", streaming_survives_a_keepalive)
+    run("unknown model", unknown_model)
+    run("refusals", refusals)
+    run("crash mid-stream", crash_mid_stream)
+    run("bad key", bad_key)
+
+
 def anthropic_cases(suite: Suite, base_url: str, api_key: str) -> None:
     client = anthropic.Anthropic(base_url=base_url, api_key=api_key, max_retries=0, timeout=TIMEOUT)
     run = lambda name, case: suite.run(f"anthropic: {name}", case)  # noqa: E731
@@ -378,6 +499,8 @@ def main() -> int:
 
     suite = Suite(args.verbose)
     openai_cases(suite, args.base_url, args.api_key)
+    print()
+    responses_cases(suite, args.base_url, args.api_key)
     print()
     anthropic_cases(suite, args.base_url, args.api_key)
     return suite.report()

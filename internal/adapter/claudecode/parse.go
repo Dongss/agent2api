@@ -50,6 +50,11 @@ type usage struct {
 	OutputTokens             int `json:"output_tokens"`
 	CacheReadInputTokens     int `json:"cache_read_input_tokens"`
 	CacheCreationInputTokens int `json:"cache_creation_input_tokens"`
+	// The CLI reports thinking tokens in a nested object, under a name of its
+	// own; ir calls the same quantity reasoning tokens.
+	OutputTokensDetails struct {
+		ThinkingTokens int `json:"thinking_tokens"`
+	} `json:"output_tokens_details"`
 }
 
 func (u *usage) toIR() *ir.Usage {
@@ -61,6 +66,7 @@ func (u *usage) toIR() *ir.Usage {
 		OutputTokens:             u.OutputTokens,
 		CacheReadInputTokens:     u.CacheReadInputTokens,
 		CacheCreationInputTokens: u.CacheCreationInputTokens,
+		ReasoningOutputTokens:    u.OutputTokensDetails.ThinkingTokens,
 	}
 }
 

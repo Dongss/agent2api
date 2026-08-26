@@ -65,6 +65,13 @@ for chunk in stream:
     print(chunk.choices[0].delta.content or "", end="")
 ```
 
+OpenAI Responses API is served too, text-only:
+
+```python
+r = client.responses.create(model="claude-code", input="Hello")
+print(r.output_text)
+```
+
 So does any Anthropic SDK, against the same gateway:
 
 ```python
@@ -93,6 +100,15 @@ Everything after the colon reaches the CLI verbatim, so there is no model list t
 go stale: a name your account just gained works immediately, and a bad one is
 rejected by the CLI. An unknown adapter is a `404`.
 `GET /v1/models` lists one row per backend.
+
+## Endpoints
+
+| Endpoint | Dialect |
+|---|---|
+| `POST /v1/chat/completions` | OpenAI Chat Completions |
+| `POST /v1/responses` | OpenAI Responses (text-only) |
+| `POST /v1/messages` | Anthropic Messages |
+| `GET /v1/models` | one row per backend |
 
 ## Commands
 
@@ -150,10 +166,19 @@ address without a key is refused at startup.
 These return a clear `400` rather than a wrong answer:
 
 - client `tools` / `tool_choice`, `n > 1`, `logprobs`, image and document input.
+- Responses server-side state: `previous_response_id`, `conversation`,
+  `background`, and the `GET`/`DELETE`/`cancel` endpoints that go with them.
+  This gateway keeps nothing between requests, so the whole conversation goes in
+  `input` every time.
+- Responses structured output (`text.format`) and `include`.
 - `stop` / `stop_sequences`: no agent CLI can enforce them, and returning text
   the caller asked to have cut would be worse than refusing.
 - A conversation over 96 KiB on the `cursor` backend: that CLI takes its prompt
   as a command-line argument, which the OS bounds.
+
+Responses `store` is accepted and ignored — nothing is kept anywhere — and the
+response reports `"store": false` so the caller is told rather than left to
+discover it when a later retrieval fails.
 
 `temperature` and `max_tokens` are accepted and passed along as best effort; none
 of the CLIs has a flag for either, so they do not take effect today. Anthropic's
