@@ -14,7 +14,7 @@ scripts/conformance/run.sh # drives both APIs with the real vendor SDKs
 
 ```
 cmd/agent2api/      serve, doctor, config print, update, version
-internal/frontend/  openai/, anthropic/, sse/   — wire formats
+internal/frontend/  openai/, responses/, anthropic/, sse/   — wire formats
 internal/ir/        the protocol-neutral middle: Request, Event, Error
 internal/adapter/   claudecode/, codex/, cursor/ — argv + output parsing
 internal/adapter/agentcli/  what those three share: probing, run loop, redaction
@@ -30,7 +30,9 @@ meets at `ir`.
 
 - **Stateless.** Every request replays the whole conversation into a fresh CLI
   process. No sessions, no cross-request state. This is what makes history
-  edits, retries and concurrent clients correct.
+  edits, retries and concurrent clients correct. The Responses frontend refuses
+  `previous_response_id` for this reason rather than approximating it, and
+  reports `"store": false` instead of quietly not storing.
 - **Adapters always stream.** Non-streaming responses are the same code path,
   collected to the end. Do not add a second one.
 - **A truncated answer is an error, not a short answer.** A run that ends

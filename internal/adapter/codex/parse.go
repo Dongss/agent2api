@@ -66,6 +66,7 @@ func (u *usage) toIR() *ir.Usage {
 		OutputTokens:             u.OutputTokens,
 		CacheReadInputTokens:     u.CachedInputTokens,
 		CacheCreationInputTokens: u.CacheWriteInputTokens,
+		ReasoningOutputTokens:    u.ReasoningOutputTokens,
 	}
 }
 

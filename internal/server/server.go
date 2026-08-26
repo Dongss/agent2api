@@ -17,6 +17,7 @@ import (
 	"github.com/Dongss/agent2api/internal/config"
 	"github.com/Dongss/agent2api/internal/frontend/anthropic"
 	"github.com/Dongss/agent2api/internal/frontend/openai"
+	"github.com/Dongss/agent2api/internal/frontend/responses"
 	"github.com/Dongss/agent2api/internal/gate"
 	"github.com/Dongss/agent2api/internal/ir"
 	"github.com/Dongss/agent2api/internal/router"
@@ -68,6 +69,9 @@ func New(cfg *config.Config, log *slog.Logger) (*Server, error) {
 	ant := anthropic.New(rt, log)
 	ant.Heartbeat = cfg.Server.HeartbeatInterval.Duration()
 	ant.Routes(mux)
+	resp := responses.New(rt, log)
+	resp.Heartbeat = cfg.Server.HeartbeatInterval.Duration()
+	resp.Routes(mux)
 	mux.HandleFunc("GET /healthz", s.health)
 	mux.HandleFunc("/", notFound)
 
