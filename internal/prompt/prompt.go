@@ -4,6 +4,25 @@
 // Every request replays the full history into a fresh CLI process, so the
 // rendering must be deterministic and unambiguous: a message whose text looks
 // like a role marker must not be able to forge one.
+//
+// # Why a marker transcript rather than the CLI's own message format
+//
+// Flattening a conversation into one string looks like a workaround for a
+// missing feature, and Claude Code does have `--input-format stream-json`,
+// which takes a stream of message objects. It is not the better path, and the
+// reason is worth writing down so nobody spends the afternoon finding out
+// again.
+//
+// That mode is an interactive session, not a history replay: it answers every
+// user message it is given. Feeding it three lines — user, assistant, user —
+// produced two completions, one for each user turn, and the assistant line
+// supplied as history did not stand in for the first answer. Replaying an
+// n-turn conversation would cost n generations instead of one, and the caller
+// would pay for answers nobody asked for. Codex and cursor-agent have no
+// structured-input mode at all.
+//
+// So the transcript stays. Its cost is that the backend sees "continue this
+// record" rather than a conversation it took part in.
 package prompt
 
 import (
