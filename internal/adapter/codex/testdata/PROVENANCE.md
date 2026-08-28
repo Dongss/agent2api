@@ -1,7 +1,7 @@
 # Where these fixtures come from
 
-All three files are recordings of real `codex exec --json` runs (codex-cli
-`0.149.1`), captured with the argv the adapter itself builds:
+All three files are recordings of real `codex exec --json` runs, verified
+against codex-cli `0.150.1`, captured with the argv the adapter itself builds:
 
 ```sh
 codex exec --json --sandbox read-only --skip-git-repo-check --cd <scratch> \
@@ -92,8 +92,7 @@ than in full — a 632-byte paragraph inline would bury what the test is for.
 
 ## History
 
-The files this replaced were recorded from codex-cli `0.148.0`. Re-recording
-against 0.149.1 found no shape change: same event types, same field names, and
-the same five `usage` keys. The only difference was wording — the quota failure
-said `out of credits` in 0.148.0 and `Quota exceeded` in 0.149.1. `classify`
-matches on `quota` and `billing`, so both land on the same error code.
+Recorded on 0.149.1, replacing files from 0.148.0; re-checked on 0.150.1. No
+shape has changed across the three. The one wording change — the quota failure
+said `out of credits` on 0.148.0 and `Quota exceeded` since — does not matter,
+because `classify` matches on `quota` and `billing`.

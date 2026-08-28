@@ -1,8 +1,8 @@
 # Where this fixture comes from
 
 `simple.stream.jsonl` is a recording of a real `claude` run in headless print
-mode (Claude Code `2.1.231`, recorded 2026-08-25), captured with the argv the
-adapter itself builds:
+mode, verified against Claude Code `2.1.231`, captured with the argv the adapter
+itself builds:
 
 ```sh
 claude --print --output-format stream-json --verbose --tools "" \
@@ -89,8 +89,7 @@ so those survive a re-record.
 
 ## History
 
-The file this replaced was recorded while the repo's first commit was being put
-together and its CLI version was never written down — the reason this file now
-exists. Re-recording against 2.1.231 found no change to any event type or to any
-field the parser reads. The older recording's `result` line lacked one key that
-2.1.231 emits, `usage.output_tokens_details`, which the parser does not read.
+Recorded on 2.1.231 (2026-08-25), replacing a file whose CLI version was never
+written down — the reason this one exists. That older recording's `result` line
+lacked one key 2.1.231 emits, `usage.output_tokens_details`, which the parser
+does not read; nothing the parser does read had changed.
