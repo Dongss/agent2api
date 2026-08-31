@@ -30,6 +30,18 @@ type gated struct {
 	queueTimeout time.Duration
 }
 
+// EnforcesSchema forwards the capability query to the wrapped adapter.
+//
+// Embedding an *interface* promotes only the methods that interface declares,
+// so an optional one like [adapter.SchemaEnforcer] does not survive the wrap on
+// its own: the type assertion sees *gated, which does not have the method, and
+// a backend that can hold a schema silently reports that it cannot. Any future
+// optional interface needs the same forwarding.
+func (g *gated) EnforcesSchema(ctx context.Context) bool {
+	e, ok := g.Adapter.(adapter.SchemaEnforcer)
+	return ok && e.EnforcesSchema(ctx)
+}
+
 // Run holds a slot for the whole life of the run, releasing it once the
 // underlying adapter closes its event channel or the caller goes away.
 func (g *gated) Run(ctx context.Context, req ir.Request) (<-chan ir.Event, error) {

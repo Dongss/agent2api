@@ -37,10 +37,12 @@ type streamEvent struct {
 		Usage *usage `json:"usage"`
 	} `json:"message"`
 	Delta *struct {
-		Type       string `json:"type"`
-		Text       string `json:"text"`
-		Thinking   string `json:"thinking"`
-		StopReason string `json:"stop_reason"`
+		Type     string `json:"type"`
+		Text     string `json:"text"`
+		Thinking string `json:"thinking"`
+		// PartialJSON carries the answer in schema mode; see [parser.streamEvent].
+		PartialJSON string `json:"partial_json"`
+		StopReason  string `json:"stop_reason"`
 	} `json:"delta"`
 	Usage *usage `json:"usage"`
 }
@@ -133,6 +135,16 @@ func (p *parser) streamEvent(ev *streamEvent) {
 			}
 			p.sawText = true
 			p.emit(ir.TextEvent(ev.Delta.Text))
+		case "input_json_delta":
+			// Schema mode: `--json-schema` makes the CLI answer through an
+			// internal StructuredOutput tool, so the JSON arrives as the tool's
+			// input rather than as text_delta, and no text_delta is sent at
+			// all. To the caller it is still just the answer, streamed.
+			if ev.Delta.PartialJSON == "" {
+				return
+			}
+			p.sawText = true
+			p.emit(ir.TextEvent(ev.Delta.PartialJSON))
 		case "thinking_delta":
 			if ev.Delta.Thinking == "" {
 				return
@@ -144,9 +156,23 @@ func (p *parser) streamEvent(ev *streamEvent) {
 			p.usage = ev.Usage.toIR()
 		}
 		if ev.Delta != nil && ev.Delta.StopReason != "" {
-			p.stopReason = ir.StopReason(ev.Delta.StopReason)
+			p.stopReason = stopReasonOf(ev.Delta.StopReason)
 		}
 	}
+}
+
+// stopReasonOf maps the CLI's stop reason into the ir vocabulary.
+//
+// `tool_use` needs translating: agent2api exposes no tools, so the only tool a
+// run can stop on is the internal StructuredOutput one that `--json-schema`
+// drives, and there the tool call *is* the finished answer. Passing it through
+// would tell an Anthropic client the turn stopped to await a tool result that
+// is never coming.
+func stopReasonOf(s string) ir.StopReason {
+	if s == "tool_use" {
+		return ir.StopEndTurn
+	}
+	return ir.StopReason(s)
 }
 
 func (p *parser) result(l streamLine) {
@@ -155,7 +181,7 @@ func (p *parser) result(l streamLine) {
 		p.usage = l.Usage.toIR()
 	}
 	if l.StopReason != "" {
-		p.stopReason = ir.StopReason(l.StopReason)
+		p.stopReason = stopReasonOf(l.StopReason)
 	}
 	if l.Model != "" {
 		p.model = l.Model

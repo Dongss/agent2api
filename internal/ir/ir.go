@@ -42,6 +42,11 @@ type Request struct {
 	MaxTokens   *int
 	Temperature *float64
 
+	// Schema, when non-empty, is a JSON Schema the answer must conform to. It
+	// is not best-effort: a frontend only sets it after the backend has said it
+	// can enforce one, so an adapter that receives it must honour it or fail.
+	Schema string
+
 	// Metadata carries non-essential request annotations (e.g. the caller's
 	// "user" field). Never used for routing.
 	Metadata map[string]string

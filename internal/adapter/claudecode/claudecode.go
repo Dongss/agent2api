@@ -88,6 +88,15 @@ func New(opts adapter.Options) (adapter.Adapter, error) {
 // ID implements adapter.Adapter.
 func (a *Adapter) ID() string { return ID }
 
+// EnforcesSchema implements adapter.SchemaEnforcer. The CLI holds the answer to
+// a caller's JSON Schema with `--json-schema`; an install too old for the flag
+// says so, and the frontend refuses the request rather than returning JSON
+// nobody checked.
+func (a *Adapter) EnforcesSchema(ctx context.Context) bool {
+	caps, err := a.probe.Caps(ctx)
+	return err == nil && caps.Has("--json-schema")
+}
+
 // Probe checks that the CLI is installed, exposes the flags agent2api needs,
 // and is logged in. It deliberately does not send a prompt: `claude auth
 // status` answers the same question without spending tokens.
@@ -183,6 +192,11 @@ func (a *Adapter) buildArgs(caps *agentcli.Caps, req ir.Request, rendered prompt
 	if req.Variant != "" && caps.Has("--model") {
 		args = append(args, "--model", req.Variant)
 	}
+	// Only ever set once EnforcesSchema said yes, so a missing flag here would
+	// mean the caller was promised something the CLI cannot do.
+	if req.Schema != "" && caps.Has("--json-schema") {
+		args = append(args, "--json-schema", req.Schema)
+	}
 
 	stdin = rendered.Prompt
 	args = append(args, a.systemPromptArgs(caps, rendered, &stdin)...)
@@ -191,12 +205,12 @@ func (a *Adapter) buildArgs(caps *agentcli.Caps, req ir.Request, rendered prompt
 	return args, stdin
 }
 
-// redactArgs makes argv safe to log. The system prompt is caller content, and
-// extra_args is whatever the operator put there, so neither reaches the log at
-// any level.
+// redactArgs makes argv safe to log. The system prompt and the JSON schema are
+// caller content, and extra_args is whatever the operator put there, so none of
+// them reaches the log at any level.
 func (a *Adapter) redactArgs(args []string) []string {
 	return agentcli.RedactArgs(args,
-		[]string{"--system-prompt", "--append-system-prompt"},
+		[]string{"--system-prompt", "--append-system-prompt", "--json-schema"},
 		agentcli.ExtraArgValues(a.opts.Config.ExtraArgs)...)
 }
 

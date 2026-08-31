@@ -8,6 +8,7 @@
 package router
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"strings"
@@ -52,6 +53,15 @@ func New(adapters []adapter.Adapter) (*Router, error) {
 	}
 	sort.Strings(r.ids)
 	return r, nil
+}
+
+// EnforcesSchema reports whether the resolved backend can hold an answer to a
+// JSON Schema. Frontends ask before accepting a caller's schema, so a refusal
+// can name the backend that cannot do it rather than reading as a gateway-wide
+// limitation.
+func (r Resolution) EnforcesSchema(ctx context.Context) bool {
+	e, ok := r.Adapter.(adapter.SchemaEnforcer)
+	return ok && e.EnforcesSchema(ctx)
 }
 
 // Resolve maps a requested model name to its adapter.

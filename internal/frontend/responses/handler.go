@@ -83,6 +83,20 @@ func (h *Handler) Responses(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ctx := r.Context()
+
+	schema, err := req.schema()
+	if err != nil {
+		WriteError(w, err)
+		return
+	}
+	if schema != "" && !res.EnforcesSchema(ctx) {
+		WriteError(w, ir.InvalidRequest("text.format",
+			"the %s backend cannot hold an answer to a schema; ask for a model whose CLI can, or drop text.format",
+			res.Adapter.ID()))
+		return
+	}
+
 	irReq := ir.Request{
 		Model:       res.Model,
 		Adapter:     res.Adapter.ID(),
@@ -91,12 +105,12 @@ func (h *Handler) Responses(w http.ResponseWriter, r *http.Request) {
 		Stream:      req.Stream,
 		MaxTokens:   req.MaxOutputTokens,
 		Temperature: req.Temperature,
+		Schema:      schema,
 	}
 	if req.User != "" {
 		irReq.Metadata = map[string]string{"user": req.User}
 	}
 
-	ctx := r.Context()
 	events, err := res.Adapter.Run(ctx, irReq)
 	if err != nil {
 		WriteError(w, err)
@@ -232,10 +246,7 @@ func (q *responsesRequest) reject() error {
 		return ir.InvalidRequest("background",
 			"background responses need server-side state, which agent2api does not keep")
 	}
-	if err := q.rejectInclude(); err != nil {
-		return err
-	}
-	return q.rejectFormat()
+	return q.rejectInclude()
 }
 
 func (q *responsesRequest) rejectInclude() error {
@@ -253,22 +264,36 @@ func (q *responsesRequest) rejectInclude() error {
 		"none of the include options can be served by an agent CLI; drop %q", strings.Join(include, ", "))
 }
 
-// rejectFormat refuses structured output. `text` also carries unrelated knobs
-// like verbosity, so only a format other than plain text is an error.
-func (q *responsesRequest) rejectFormat() error {
+// schema reads `text.format`, returning the JSON Schema the answer must conform
+// to, or "" when the caller asked for ordinary text. `text` also carries
+// unrelated knobs like verbosity, so an absent format is not an error.
+//
+// Whether a schema can actually be served depends on the backend, so this only
+// decodes; the caller checks the capability once the model has resolved.
+func (q *responsesRequest) schema() (string, error) {
 	if isEmptyJSON(q.Text) {
-		return nil
+		return "", nil
 	}
 	var t textFormat
 	if err := json.Unmarshal(q.Text, &t); err != nil {
-		return ir.InvalidRequest("text", "text must be an object")
+		return "", ir.InvalidRequest("text", "text must be an object")
 	}
 	switch t.Format.Type {
 	case "", "text":
-		return nil
+		return "", nil
+	case "json_object":
+		// See the same case in the openai frontend: an open object schema is a
+		// different request, and the model answers it by inventing a wrapper.
+		return "", ir.InvalidRequest("text.format.type", "`json_object` asks for JSON of no particular shape, which the backend cannot be held to: its schema flag needs a shape, and an open schema makes the model invent a wrapper key. Send `json_schema` with the shape you want")
+	case "json_schema":
+		// Responses puts the schema inline in the format object, where chat
+		// completions nests it under json_schema.
+		if isEmptyJSON(t.Format.Schema) {
+			return "", ir.InvalidRequest("text.format.schema", "a schema is required")
+		}
+		return string(t.Format.Schema), nil
 	default:
-		return ir.InvalidRequest("text.format.type",
-			"structured output is not supported: an agent CLI cannot be held to a schema, and returning unvalidated JSON would be worse than refusing")
+		return "", ir.InvalidRequest("text.format.type", "unsupported output format %q", t.Format.Type)
 	}
 }
 

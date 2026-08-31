@@ -166,3 +166,25 @@ func TestCanceledWhileQueued(t *testing.T) {
 		t.Errorf("want a canceled error, got %v", err)
 	}
 }
+
+// The gate embeds the Adapter interface, which promotes only the methods that
+// interface declares. An optional capability must be forwarded explicitly, or a
+// backend that can hold a schema reports that it cannot once wrapped.
+func TestWrapForwardsSchemaCapability(t *testing.T) {
+	backend := fake.New("fake", "reply")
+	backend.Schema = true
+
+	wrapped := Wrap(backend, 2, time.Second)
+	e, ok := wrapped.(adapter.SchemaEnforcer)
+	if !ok {
+		t.Fatal("the wrapped adapter no longer reports the capability at all")
+	}
+	if !e.EnforcesSchema(context.Background()) {
+		t.Error("EnforcesSchema = false through the gate, true without it")
+	}
+
+	backend.Schema = false
+	if e.EnforcesSchema(context.Background()) {
+		t.Error("EnforcesSchema = true for a backend that says it cannot")
+	}
+}

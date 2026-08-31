@@ -275,3 +275,66 @@ func TestMaxCompletionTokensAlias(t *testing.T) {
 		t.Errorf("max_completion_tokens not carried into the request: %v", got)
 	}
 }
+
+// response_format used to be neither decoded nor refused, so a caller that
+// asked for JSON got prose and a 200 with no sign the constraint was dropped.
+func TestResponseFormatIsNotSilentlyIgnored(t *testing.T) {
+	body := `{"model":"fake","messages":[{"role":"user","content":"hi"}],
+	          "response_format":{"type":"json_schema","json_schema":{"name":"p","schema":{"type":"object"}}}}`
+	rec := post(t, testHandler(t, fake.New("fake", "prose")), body)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400: %s", rec.Code, rec.Body.String())
+	}
+	var env errorEnvelope
+	if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
+		t.Fatal(err)
+	}
+	if env.Error.Param != "response_format" {
+		t.Errorf("param = %q, want response_format", env.Error.Param)
+	}
+	// The refusal names the backend: another model would serve this.
+	if !strings.Contains(env.Error.Message, "fake") {
+		t.Errorf("message = %q, want it to name the backend", env.Error.Message)
+	}
+}
+
+func TestResponseFormatShapes(t *testing.T) {
+	tests := []struct {
+		name   string
+		format string
+		want   string
+		status int
+	}{
+		{"absent", ``, "", http.StatusOK},
+		{"text", `,"response_format":{"type":"text"}`, "", http.StatusOK},
+		// json_object cannot be served honestly; see the handler for why.
+		{"json_object", `,"response_format":{"type":"json_object"}`, "", http.StatusBadRequest},
+		{
+			"json_schema",
+			`,"response_format":{"type":"json_schema","json_schema":{"name":"p","schema":{"type":"object","required":["a"]}}}`,
+			`{"type":"object","required":["a"]}`, http.StatusOK,
+		},
+		{"json_schema with no schema", `,"response_format":{"type":"json_schema","json_schema":{"name":"p"}}`, "", http.StatusBadRequest},
+		{"unknown type", `,"response_format":{"type":"nonsense"}`, "", http.StatusBadRequest},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			b := fake.New("fake", "reply")
+			b.Schema = true
+			rec := post(t, testHandler(t, b),
+				`{"model":"fake","messages":[{"role":"user","content":"hi"}]`+tc.format+`}`)
+			if rec.Code != tc.status {
+				t.Fatalf("status = %d, want %d: %s", rec.Code, tc.status, rec.Body.String())
+			}
+			if tc.status != http.StatusOK {
+				return
+			}
+			if len(b.Requests) != 1 {
+				t.Fatalf("adapter saw %d requests", len(b.Requests))
+			}
+			if got := b.Requests[0].Schema; got != tc.want {
+				t.Errorf("Schema = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}

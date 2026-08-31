@@ -43,6 +43,13 @@ meets at `ir`.
   defaults live in Go (`defaults.go`), and `agent2api.example.yaml` documents
   every key — a test fails if the two drift.
 - **`config print` and the logs redact anything that can hold a credential.**
+- **A capability is per-installed-CLI, not per-adapter.** Structured output is
+  the first: `adapter.SchemaEnforcer` is an optional interface, answered by
+  probing the binary's flags, and a frontend asks before accepting a schema so
+  the refusal names the backend. Anything wrapping an adapter must forward such
+  an interface explicitly — embedding `adapter.Adapter` promotes only the
+  methods that interface declares, so `gate` silently dropped it until told not
+  to.
 - **`update` verifies or refuses.** The install scripts warn and continue when
   `checksums.txt` is missing — reasonable when creating a file that did not
   exist. `update` overwrites a binary the user already trusts, so an absent or

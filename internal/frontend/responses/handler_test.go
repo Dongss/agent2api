@@ -251,7 +251,10 @@ func TestRefusals(t *testing.T) {
 		{"conversation", `{"model":"fake","input":"hi","conversation":"conv_1"}`, "conversation"},
 		{"background", `{"model":"fake","input":"hi","background":true}`, "background"},
 		{"include", `{"model":"fake","input":"hi","include":["reasoning.encrypted_content"]}`, "include"},
-		{"structured output", `{"model":"fake","input":"hi","text":{"format":{"type":"json_schema"}}}`, "text.format.type"},
+		{"schema on a backend that cannot enforce one", `{"model":"fake","input":"hi","text":{"format":{"type":"json_schema","name":"p","schema":{"type":"object"}}}}`, "text.format"},
+		{"json_schema without a schema", `{"model":"fake","input":"hi","text":{"format":{"type":"json_schema","name":"p"}}}`, "text.format.schema"},
+		{"unknown output format", `{"model":"fake","input":"hi","text":{"format":{"type":"nonsense"}}}`, "text.format.type"},
+		{"json_object", `{"model":"fake","input":"hi","text":{"format":{"type":"json_object"}}}`, "text.format.type"},
 		{"image part", `{"model":"fake","input":[{"role":"user","content":[{"type":"input_image"}]}]}`, "input[0].content[0]"},
 		{"file part", `{"model":"fake","input":[{"role":"user","content":[{"type":"input_file"}]}]}`, "input[0].content[0]"},
 		{"function_call item", `{"model":"fake","input":[{"type":"function_call","name":"f"}]}`, "input[0].type"},
@@ -336,5 +339,58 @@ func TestBackendFailureKeepsItsStatus(t *testing.T) {
 	}
 	if env.Error.Message == "" {
 		t.Error("no explanation on the failure")
+	}
+}
+
+// A schema is refused only where the backend cannot hold an answer to one. The
+// refusal names the backend so the caller knows another model would work.
+func TestSchemaRefusalNamesTheBackend(t *testing.T) {
+	h := plain(t) // the fake reports no schema support by default
+	rec := post(t, h, `{"model":"fake","input":"hi","text":{"format":{"type":"json_schema","name":"p","schema":{"type":"object"}}}}`)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400: %s", rec.Code, rec.Body.String())
+	}
+	var env errorEnvelope
+	if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(env.Error.Message, "fake") {
+		t.Errorf("message = %q, want it to name the backend", env.Error.Message)
+	}
+}
+
+// Where the backend can enforce one, the schema reaches the adapter verbatim.
+func TestSchemaReachesTheAdapter(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+		want string
+	}{
+		{
+			"json_schema carries the caller's schema",
+			`{"model":"fake","input":"hi","text":{"format":{"type":"json_schema","name":"p","schema":{"type":"object","required":["a"]}}}}`,
+			`{"type":"object","required":["a"]}`,
+		},
+		{
+			"plain text asks for no schema",
+			`{"model":"fake","input":"hi","text":{"format":{"type":"text"}}}`,
+			"",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			b := fake.New("fake", "Mock reply.")
+			b.Schema = true
+			h := newTestHandler(t, b)
+			if rec := post(t, h, tc.body); rec.Code != http.StatusOK {
+				t.Fatalf("status = %d: %s", rec.Code, rec.Body.String())
+			}
+			if len(b.Requests) != 1 {
+				t.Fatalf("adapter saw %d requests", len(b.Requests))
+			}
+			if got := b.Requests[0].Schema; got != tc.want {
+				t.Errorf("Schema = %q, want %q", got, tc.want)
+			}
+		})
 	}
 }

@@ -21,14 +21,15 @@ type chatRequest struct {
 	MaxCompletionTokens *int     `json:"max_completion_tokens"`
 
 	// Refused with 400 when present; see validate.
-	Stop         json.RawMessage `json:"stop"`
-	N            *int            `json:"n"`
-	Logprobs     *bool           `json:"logprobs"`
-	TopLogprobs  *int            `json:"top_logprobs"`
-	Tools        json.RawMessage `json:"tools"`
-	ToolChoice   json.RawMessage `json:"tool_choice"`
-	Functions    json.RawMessage `json:"functions"`
-	FunctionCall json.RawMessage `json:"function_call"`
+	Stop           json.RawMessage `json:"stop"`
+	N              *int            `json:"n"`
+	Logprobs       *bool           `json:"logprobs"`
+	TopLogprobs    *int            `json:"top_logprobs"`
+	ResponseFormat json.RawMessage `json:"response_format"`
+	Tools          json.RawMessage `json:"tools"`
+	ToolChoice     json.RawMessage `json:"tool_choice"`
+	Functions      json.RawMessage `json:"functions"`
+	FunctionCall   json.RawMessage `json:"function_call"`
 
 	User string `json:"user"`
 }
@@ -143,4 +144,15 @@ type errorBody struct {
 	Type    string `json:"type"`
 	Param   string `json:"param,omitempty"`
 	Code    string `json:"code,omitempty"`
+}
+
+// responseFormat is the `response_format` object. The schema sits one level
+// down, under json_schema, which is where this dialect differs from Responses.
+type responseFormat struct {
+	Type       string `json:"type"`
+	JSONSchema struct {
+		Name   string          `json:"name"`
+		Schema json.RawMessage `json:"schema"`
+		Strict *bool           `json:"strict"`
+	} `json:"json_schema"`
 }
