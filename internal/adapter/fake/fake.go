@@ -36,6 +36,9 @@ type Adapter struct {
 	Silent bool
 	// Usage, when set, is reported on the done event.
 	Usage *ir.Usage
+	// Schema, when set, makes the adapter report that it can hold an answer to
+	// a JSON Schema, so a frontend accepts one instead of refusing it.
+	Schema bool
 
 	// Requests records what the gateway asked for.
 	Requests []ir.Request
@@ -56,6 +59,9 @@ func (a *Adapter) ID() string {
 	}
 	return a.AdapterID
 }
+
+// EnforcesSchema implements adapter.SchemaEnforcer.
+func (a *Adapter) EnforcesSchema(context.Context) bool { return a.Schema }
 
 // Probe implements adapter.Adapter.
 func (a *Adapter) Probe(ctx context.Context) (adapter.Health, error) {

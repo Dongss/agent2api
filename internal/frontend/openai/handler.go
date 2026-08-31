@@ -103,6 +103,20 @@ func (h *Handler) ChatCompletions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ctx := r.Context()
+
+	schema, err := req.schema()
+	if err != nil {
+		WriteError(w, err)
+		return
+	}
+	if schema != "" && !res.EnforcesSchema(ctx) {
+		WriteError(w, ir.InvalidRequest("response_format",
+			"the %s backend cannot hold an answer to a schema; ask for a model whose CLI can, or drop response_format",
+			res.Adapter.ID()))
+		return
+	}
+
 	irReq := ir.Request{
 		Model:       res.Model,
 		Adapter:     res.Adapter.ID(),
@@ -111,12 +125,12 @@ func (h *Handler) ChatCompletions(w http.ResponseWriter, r *http.Request) {
 		Stream:      req.Stream,
 		MaxTokens:   req.maxTokens(),
 		Temperature: req.Temperature,
+		Schema:      schema,
 	}
 	if req.User != "" {
 		irReq.Metadata = map[string]string{"user": req.User}
 	}
 
-	ctx := r.Context()
 	events, err := res.Adapter.Run(ctx, irReq)
 	if err != nil {
 		WriteError(w, err)
@@ -282,6 +296,38 @@ func decodeContent(raw json.RawMessage, param string) (string, error) {
 		}
 	}
 	return b.String(), nil
+}
+
+// schema reads response_format, returning the JSON Schema the answer must
+// conform to, or "" when the caller asked for ordinary text.
+//
+// Whether a schema can actually be served depends on the backend, so this only
+// decodes; the caller checks the capability once the model has resolved.
+func (c *chatRequest) schema() (string, error) {
+	if isEmptyJSON(c.ResponseFormat) {
+		return "", nil
+	}
+	var f responseFormat
+	if err := json.Unmarshal(c.ResponseFormat, &f); err != nil {
+		return "", ir.InvalidRequest("response_format", "response_format must be an object")
+	}
+	switch f.Type {
+	case "", "text":
+		return "", nil
+	case "json_object":
+		// Tempting to map onto an open `{"type":"object"}` schema, but that is
+		// not the same request and the difference shows: asked to conform to an
+		// open object the model invents a wrapper key and stringifies the real
+		// answer inside it. Refusing beats returning that.
+		return "", ir.InvalidRequest("response_format.type", "`json_object` asks for JSON of no particular shape, which the backend cannot be held to: its schema flag needs a shape, and an open schema makes the model invent a wrapper key. Send `json_schema` with the shape you want")
+	case "json_schema":
+		if isEmptyJSON(f.JSONSchema.Schema) {
+			return "", ir.InvalidRequest("response_format.json_schema.schema", "a schema is required")
+		}
+		return string(f.JSONSchema.Schema), nil
+	default:
+		return "", ir.InvalidRequest("response_format.type", "unsupported response format %q", f.Type)
+	}
 }
 
 // maxTokens folds OpenAI's two spellings into one best-effort hint.

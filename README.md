@@ -170,11 +170,20 @@ These return a clear `400` rather than a wrong answer:
   `background`, and the `GET`/`DELETE`/`cancel` endpoints that go with them.
   This gateway keeps nothing between requests, so the whole conversation goes in
   `input` every time.
-- Responses structured output (`text.format`) and `include`.
+- Responses `include`.
 - `stop` / `stop_sequences`: no agent CLI can enforce them, and returning text
   the caller asked to have cut would be worse than refusing.
 - A conversation over 96 KiB on the `cursor` backend: that CLI takes its prompt
   as a command-line argument, which the OS bounds.
+
+Structured output depends on the backend. Where the installed CLI can hold an
+answer to a JSON Schema, `response_format` and `text.format` are honoured;
+where it cannot, the request is refused with a `400` naming the backend, so it
+reads as "ask for another model" rather than "the gateway cannot do this".
+Today `claude-code` can and the others cannot. `json_object` is refused
+everywhere: it asks for JSON of no particular shape, and the CLI flag needs a
+shape — given an open one the model invents a wrapper key and stringifies the
+real answer inside it, which is worse than refusing.
 
 Responses `store` is accepted and ignored — nothing is kept anywhere — and the
 response reports `"store": false` so the caller is told rather than left to

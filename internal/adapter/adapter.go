@@ -18,6 +18,18 @@ import (
 	"github.com/Dongss/agent2api/internal/ir"
 )
 
+// SchemaEnforcer is implemented by adapters whose CLI can hold an answer to a
+// JSON Schema.
+//
+// It is an optional interface rather than a method on [Adapter] because the
+// answer is a property of the installed binary, not of the adapter: the same
+// adapter reports false against a CLI too old for the flag. Frontends ask
+// before accepting a caller's schema so the refusal can name the backend that
+// cannot do it, instead of reading as a gateway-wide limitation.
+type SchemaEnforcer interface {
+	EnforcesSchema(ctx context.Context) bool
+}
+
 // Health is the outcome of probing a backend, as reported by `agent2api doctor`.
 type Health struct {
 	// Binary is the resolved absolute path of the CLI, when it was found.

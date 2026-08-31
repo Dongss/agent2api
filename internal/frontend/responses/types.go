@@ -59,10 +59,15 @@ type contentPart struct {
 	Text string `json:"text"`
 }
 
-// textFormat is the `text` field, which selects structured output.
+// textFormat is the `text` field, which selects structured output. Responses
+// puts the schema inline in the format object, where chat completions nests it
+// one level down under json_schema.
 type textFormat struct {
 	Format struct {
-		Type string `json:"type"`
+		Type   string          `json:"type"`
+		Name   string          `json:"name"`
+		Schema json.RawMessage `json:"schema"`
+		Strict *bool           `json:"strict"`
 	} `json:"format"`
 }
 

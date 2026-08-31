@@ -1,7 +1,7 @@
 # Where these fixtures come from
 
 All three files are recordings of real `codex exec --json` runs, verified
-against codex-cli `0.150.1`, captured with the argv the adapter itself builds:
+against codex-cli `0.151.0`, captured with the argv the adapter itself builds:
 
 ```sh
 codex exec --json --sandbox read-only --skip-git-repo-check --cd <scratch> \
@@ -61,7 +61,7 @@ because a startup warning that must not fail the turn is exactly what
 
 ## What the CLI does not emit
 
-0.149.1 sends `item.completed` only. It has no `item.started` or `item.updated`,
+codex sends `item.completed` only. It has no `item.started` or `item.updated`,
 and no partial-text events at all: an assistant message arrives whole or not at
 all, which is why the codex backend cannot stream token by token the way
 `claude --include-partial-messages` does.
@@ -92,7 +92,7 @@ than in full — a 632-byte paragraph inline would bury what the test is for.
 
 ## History
 
-Recorded on 0.149.1, replacing files from 0.148.0; re-checked on 0.150.1. No
-shape has changed across the three. The one wording change — the quota failure
+Recorded on 0.149.1, replacing files from 0.148.0; re-checked on 0.150.1 and
+0.151.0. No shape has changed across any of them. The one wording change — the quota failure
 said `out of credits` on 0.148.0 and `Quota exceeded` since — does not matter,
 because `classify` matches on `quota` and `billing`.
