@@ -1,7 +1,7 @@
 # Where this fixture comes from
 
 `simple.stream.jsonl` is a recording of a real `claude` run in headless print
-mode, verified against Claude Code `2.1.231`, captured with the argv the adapter
+mode, verified against Claude Code `2.1.236`, captured with the argv the adapter
 itself builds:
 
 ```sh
@@ -89,7 +89,8 @@ so those survive a re-record.
 
 ## History
 
-Recorded on 2.1.231 (2026-08-25), replacing a file whose CLI version was never
-written down — the reason this one exists. That older recording's `result` line
-lacked one key 2.1.231 emits, `usage.output_tokens_details`, which the parser
-does not read; nothing the parser does read had changed.
+Recorded on 2.1.231 (2026-08-25), re-checked on 2.1.236, replacing a file whose
+CLI version was never written down — the reason this one exists. That older
+recording's `result` line lacked one key 2.1.231 emits,
+`usage.output_tokens_details`, which the parser does not read; nothing the parser
+does read has changed since.
