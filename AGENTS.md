@@ -16,8 +16,8 @@ scripts/conformance/run.sh # drives both APIs with the real vendor SDKs
 cmd/agent2api/      serve, doctor, config print, update, version
 internal/frontend/  openai/, responses/, anthropic/, sse/   — wire formats
 internal/ir/        the protocol-neutral middle: Request, Event, Error
-internal/adapter/   claudecode/, codex/, cursor/ — argv + output parsing
-internal/adapter/agentcli/  what those three share: probing, run loop, redaction
+internal/adapter/   claudecode/, codex/, cursor/, qwencode/ — argv + output parsing
+internal/adapter/agentcli/  what they share: probing, run loop, redaction
 internal/runner/    subprocess lifecycle, deadlines, process trees
 internal/config/    schema, Go defaults, strict decode, flags
 internal/selfupdate/  `update`: fetch, verify and swap in a release binary

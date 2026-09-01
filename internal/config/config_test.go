@@ -43,8 +43,10 @@ func TestLoadDefaults(t *testing.T) {
 		t.Errorf("request_timeout = %v, want 600 seconds", cfg.Server.RequestTimeout)
 	}
 	// Every backend is a candidate by default; probing decides which run.
-	if got := cfg.AdapterIDs(); len(got) != 3 {
-		t.Errorf("candidate adapters = %v, want all three", got)
+	// Compared against the registry rather than a count, so adding an adapter
+	// does not fail here for the wrong reason.
+	if got := cfg.AdapterIDs(); len(got) != len(KnownAdapters) {
+		t.Errorf("candidate adapters = %v, want all of %v", got, KnownAdapters)
 	}
 	if cfg.Server.MaxConcurrency != 4 {
 		t.Errorf("max_concurrency = %d, want 4", cfg.Server.MaxConcurrency)
