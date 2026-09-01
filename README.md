@@ -136,12 +136,6 @@ cursor       ok      /Users/you/.local/bin/cursor-agent  2026.08.31-4057e58     
 qwen-code    ok      /Users/you/.local/bin/qwen          0.22.3                 -                qwen-code, qwen-code:<model>
 ```
 
-A backend that cannot report an account leaves the column empty — `qwen-code` has no
-way to say whether it is logged in without spending a request, so a logged-out
-install of it fails on its first one instead of at startup. Anything else worth
-knowing about an install — a flag this version lacks, a sandbox loosened in
-config — is printed under the table as a note.
-
 Backends marked `unavailable` are simply skipped at startup; `doctor` exits
 non-zero only if nothing at all is usable.
 
