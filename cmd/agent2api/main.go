@@ -10,6 +10,7 @@ import (
 	_ "github.com/Dongss/agent2api/internal/adapter/claudecode"
 	_ "github.com/Dongss/agent2api/internal/adapter/codex"
 	_ "github.com/Dongss/agent2api/internal/adapter/cursor"
+	_ "github.com/Dongss/agent2api/internal/adapter/qwencode"
 )
 
 func main() {

@@ -1,7 +1,7 @@
 # Where these fixtures come from
 
 Both files are recordings of real `cursor-agent` runs, verified against version
-`2026.08.25-3e8eec8`, captured with the argv the adapter itself builds:
+`2026.08.31-4057e58`, captured with the argv the adapter itself builds:
 
 ```sh
 cursor-agent --print --output-format stream-json [--stream-partial-output] \
@@ -50,6 +50,7 @@ counts, so they will need the new run's numbers.
 
 ## History
 
-Recorded on `2026.08.11-e8db854`, re-checked on `2026.08.25-3e8eec8`: no event
-type, field or `usage` key changed. Neither version has a flag for disabling
-session persistence, so a run still leaves state under `~/.cursor`.
+Recorded on `2026.08.11-e8db854`, re-checked on `2026.08.25-3e8eec8` and
+`2026.08.31-4057e58`: no event type, field or `usage` key changed across any of
+them. None of them has a flag for disabling session persistence, so a run still
+leaves state under `~/.cursor`.

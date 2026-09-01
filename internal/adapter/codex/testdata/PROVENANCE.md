@@ -93,6 +93,13 @@ than in full — a 632-byte paragraph inline would bury what the test is for.
 ## History
 
 Recorded on 0.149.1, replacing files from 0.148.0; re-checked on 0.150.1 and
-0.151.0. No shape has changed across any of them. The one wording change — the quota failure
+0.151.0. No shape has changed across any of them.
+
+0.152.0 is **not** in that list on purpose. Every flag the adapter passes is
+still accepted and the failure path still matches `quota-exceeded.jsonl`, but
+both providers reachable from the recording machine were out of credit when it
+was checked, so the successful shapes — `item.completed`/`reasoning`,
+`item.completed`/`agent_message`, `turn.completed` with `usage` — could not be
+observed. Saying "verified against 0.152.0" would claim more than was seen. The one wording change — the quota failure
 said `out of credits` on 0.148.0 and `Quota exceeded` since — does not matter,
 because `classify` matches on `quota` and `billing`.

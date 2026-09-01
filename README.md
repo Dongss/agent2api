@@ -5,7 +5,7 @@
 [![CI](https://github.com/Dongss/agent2api/actions/workflows/ci.yml/badge.svg)](https://github.com/Dongss/agent2api/actions/workflows/ci.yml)
 ![coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/Dongss/fb5b6041e3db32f9765ecaba9969e868/raw/agent2api-coverage.json)
 
-Expose local agent CLIs (Claude Code, Cursor, Codex, and more) as OpenAI- and Anthropic-compatible LLM APIs over HTTP.
+Expose local agent CLIs (Claude Code, Codex, Cursor, Qwen Code, and more) as OpenAI- and Anthropic-compatible LLM APIs over HTTP.
 
 **agent2api** turns the agent CLIs already installed on your machine into standard LLM HTTP APIs. Point any OpenAI or Anthropic SDK at a local endpoint, and requests are translated to the underlying CLI transparently — no extra API keys, no vendor lock-in, no client-side changes.
 
@@ -14,6 +14,7 @@ Expose local agent CLIs (Claude Code, Cursor, Codex, and more) as OpenAI- and An
 - [x] Claude Code (`claude`)
 - [x] Codex (`codex exec`)
 - [x] Cursor (`cursor-agent`)
+- [x] Qwen Code (`qwen`)
 
 ## Installation
 
@@ -93,8 +94,8 @@ Models are namespaced `<adapter>[:<model>]`:
 
 | Name | Resolves to |
 |---|---|
-| `claude-code`, `codex`, `cursor` | whichever model that CLI picks on its own |
-| `claude-code:opus`, `codex:gpt-5.6-sol`, `cursor:composer` | that model |
+| `claude-code`, `codex`, `cursor`, `qwen-code` | whichever model that CLI picks on its own |
+| `claude-code:opus`, `codex:gpt-5.6-sol`, `cursor:composer`, `qwen-code:qwen3-coder` | that model |
 
 Everything after the colon reaches the CLI verbatim, so there is no model list to
 go stale: a name your account just gained works immediately, and a bad one is
@@ -126,13 +127,20 @@ state — the same probe `serve` runs to decide what to offer. It sends no promp
 so it costs nothing:
 
 ```
-ADAPTER      STATUS       BINARY                              VERSION                ACCOUNT          MODELS
-claude-code  ok           /opt/homebrew/bin/claude            2.1.228 (Claude Code)  you@example.com  claude-code, claude-code:<model>
-codex        ok           /Users/you/.local/bin/codex         codex-cli 0.148.0      ChatGPT          codex, codex:<model>
-cursor       unavailable  /Users/you/.local/bin/cursor-agent  2026.08.11-e8db854     -                cursor, cursor:<model>
+config file: none (using built-in defaults)
 
-cursor: the Cursor Agent CLI is not logged in; run `cursor-agent login` (Not logged in)
+ADAPTER      STATUS  BINARY                              VERSION                ACCOUNT          MODELS
+claude-code  ok      /opt/homebrew/bin/claude            2.1.236 (Claude Code)  you@example.com  claude-code, claude-code:<model>
+codex        ok      /Users/you/.local/bin/codex         codex-cli 0.152.0      ChatGPT          codex, codex:<model>
+cursor       ok      /Users/you/.local/bin/cursor-agent  2026.08.31-4057e58     you@example.com  cursor, cursor:<model>
+qwen-code    ok      /Users/you/.local/bin/qwen          0.22.3                 -                qwen-code, qwen-code:<model>
 ```
+
+A backend that cannot report an account leaves the column empty — `qwen-code` has no
+way to say whether it is logged in without spending a request, so a logged-out
+install of it fails on its first one instead of at startup. Anything else worth
+knowing about an install — a flag this version lacks, a sandbox loosened in
+config — is printed under the table as a note.
 
 Backends marked `unavailable` are simply skipped at startup; `doctor` exits
 non-zero only if nothing at all is usable.
@@ -212,11 +220,13 @@ responses:
   runs, including a failing one.
 - `internal/adapter/cursor/testdata/` — recorded from real `cursor-agent` runs,
   one per streaming shape the CLI has.
+- `internal/adapter/qwencode/testdata/` — recorded from a real `qwen` run, made in a
+  scratch directory holding the settings that leave the CLI no tools.
 
 Each directory carries a `PROVENANCE.md` naming the CLI version the fixtures came
 from, the argv used, the scrubbing applied, and how to re-record.
 
-Identifiers in all three are synthetic, including one buried in a thinking
+Identifiers in all of them are synthetic, including one buried in a thinking
 signature: the recordings are real, but there is no reason to publish the ids of
 someone's actual calls.
 

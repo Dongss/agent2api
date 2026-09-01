@@ -35,7 +35,7 @@ const Delim = "."
 // KnownAdapters are the adapter ids the schema accepts. An adapter listed here
 // may still be unimplemented in this build; that is reported at startup rather
 // than at config load.
-var KnownAdapters = []string{"claude-code", "codex", "cursor"}
+var KnownAdapters = []string{"claude-code", "codex", "cursor", "qwen-code"}
 
 // RegisterAdapterID makes an adapter id valid in a config file. Adapter
 // packages that are not part of a normal build (the conformance-only mock

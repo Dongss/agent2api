@@ -56,3 +56,7 @@ adapters:
     mode: ask               # ask | plan
     extra_args: []
     env: {}
+  qwen-code:
+    binary: qwen
+    extra_args: []
+    env: {}

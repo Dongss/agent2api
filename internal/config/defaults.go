@@ -39,6 +39,7 @@ const (
 	DefaultClaudeCodeBinary = "claude"
 	DefaultCodexBinary      = "codex"
 	DefaultCursorBinary     = "cursor-agent"
+	DefaultQwenBinary       = "qwen"
 )
 
 // DefaultSandbox is the codex sandbox mode: the most restrictive one the CLI
@@ -97,6 +98,9 @@ func Defaults() Config {
 			"cursor": {
 				Binary: DefaultCursorBinary,
 				Mode:   DefaultCursorMode,
+			},
+			"qwen-code": {
+				Binary: DefaultQwenBinary,
 			},
 		},
 	}
