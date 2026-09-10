@@ -130,10 +130,10 @@ so it costs nothing:
 config file: none (using built-in defaults)
 
 ADAPTER      STATUS  BINARY                              VERSION                ACCOUNT          MODELS
-claude-code  ok      /opt/homebrew/bin/claude            2.1.236 (Claude Code)  you@example.com  claude-code, claude-code:<model>
-codex        ok      /Users/you/.local/bin/codex         codex-cli 0.152.0      ChatGPT          codex, codex:<model>
-cursor       ok      /Users/you/.local/bin/cursor-agent  2026.08.31-4057e58     you@example.com  cursor, cursor:<model>
-qwen-code    ok      /Users/you/.local/bin/qwen          0.22.3                 -                qwen-code, qwen-code:<model>
+claude-code  ok      /Users/you/.local/bin/claude        2.1.267 (Claude Code)  you@example.com  claude-code, claude-code:<model>
+codex        ok      /Users/you/.local/bin/codex         codex-cli 0.154.0      ChatGPT          codex, codex:<model>
+cursor       ok      /Users/you/.local/bin/cursor-agent  2026.09.08-6caf4ff     you@example.com  cursor, cursor:<model>
+qwen-code    ok      /Users/you/.local/bin/qwen          0.23.2                 -                qwen-code, qwen-code:<model>
 ```
 
 Backends marked `unavailable` are simply skipped at startup; `doctor` exits
