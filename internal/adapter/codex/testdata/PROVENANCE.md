@@ -1,7 +1,7 @@
 # Where these fixtures come from
 
 All three files are recordings of real `codex exec --json` runs, verified
-against codex-cli `0.151.0`, captured with the argv the adapter itself builds:
+against codex-cli `0.154.0`, captured with the argv the adapter itself builds:
 
 ```sh
 codex exec --json --sandbox read-only --skip-git-repo-check --cd <scratch> \
@@ -92,14 +92,25 @@ than in full — a 632-byte paragraph inline would bury what the test is for.
 
 ## History
 
-Recorded on 0.149.1, replacing files from 0.148.0; re-checked on 0.150.1 and
-0.151.0. No shape has changed across any of them.
+Recorded on 0.149.1, replacing files from 0.148.0; re-checked on 0.150.1,
+0.151.0 and 0.154.0. No shape has changed across any of them.
 
-0.152.0 is **not** in that list on purpose. Every flag the adapter passes is
-still accepted and the failure path still matches `quota-exceeded.jsonl`, but
-both providers reachable from the recording machine were out of credit when it
-was checked, so the successful shapes — `item.completed`/`reasoning`,
-`item.completed`/`agent_message`, `turn.completed` with `usage` — could not be
-observed. Saying "verified against 0.152.0" would claim more than was seen. The one wording change — the quota failure
-said `out of credits` on 0.148.0 and `Quota exceeded` since — does not matter,
-because `classify` matches on `quota` and `billing`.
+Two things about that list are worth keeping.
+
+0.152.0 was checked and deliberately **not** claimed: its flags were all still
+accepted and its failure path still matched `quota-exceeded.jsonl`, but every
+provider reachable from the recording machine was out of credit at the time, so
+the successful shapes could not be observed. 0.154.0 finally could — the same
+`item.completed`/`reasoning`, `item.completed`/`agent_message` and
+`turn.completed` with the same five `usage` keys — which is what promotes the
+header past 0.151.0.
+
+The failure message has changed wording once, from `out of credits` on 0.148.0
+to `Quota exceeded` since. It does not matter: `classify` matches on `quota` and
+`billing`, not on the sentence.
+
+One difference in the 0.154.0 run is not a shape change. It carried a single
+`item.completed`/`error` warning where the recording has two, because the
+recording machine's `config.toml` no longer sets the deprecated
+`[features].codex_hooks`. The recording keeps both, since a startup warning that
+must not fail the turn is what `TestWarningItemsAreNotFatal` covers.

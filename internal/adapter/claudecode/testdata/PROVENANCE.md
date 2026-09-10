@@ -1,7 +1,7 @@
 # Where this fixture comes from
 
 `simple.stream.jsonl` is a recording of a real `claude` run in headless print
-mode, verified against Claude Code `2.1.236`, captured with the argv the adapter
+mode, verified against Claude Code `2.1.267`, captured with the argv the adapter
 itself builds:
 
 ```sh
@@ -31,6 +31,9 @@ The run resolved to `claude-haiku-4-5-20251001`, answered
   tool list really is empty), and the `cwd` it ran in.
 - `system` / `status` and `system` / `thinking_tokens` — progress lines that
   carry no content and must not reach the caller. There are five of the latter.
+  2.1.267 no longer sends `thinking_tokens` at all; the recording keeps them
+  because a parser that starts choking on an event it used to ignore should
+  fail here.
 - `stream_event` wrapping the Anthropic wire events: `message_start`,
   `content_block_start` / `_delta` / `_stop` for **both** a `thinking` block and
   a `text` block, `message_delta` with `stop_reason`, `message_stop`.
@@ -89,8 +92,12 @@ so those survive a re-record.
 
 ## History
 
-Recorded on 2.1.231 (2026-08-25), re-checked on 2.1.236, replacing a file whose
+Recorded on 2.1.231 (2026-08-25), re-checked on 2.1.236 and 2.1.267, replacing a file whose
 CLI version was never written down — the reason this one exists. That older
 recording's `result` line lacked one key 2.1.231 emits,
 `usage.output_tokens_details`, which the parser does not read; nothing the parser
 does read has changed since.
+
+2.1.267 changed two things, neither of them a field the parser reads: it stopped
+emitting `system`/`thinking_tokens`, and its `result` line gained
+`first_content_frame_ms`, `queued_turn_count` and `subagent_stats`.
