@@ -164,6 +164,22 @@ def openai_cases(suite: Suite, base_url: str, api_key: str) -> None:
             tools=[{"type": "function", "function": {"name": "x"}}]),
             status=400, message="tool calling")
 
+    def reasoning_effort_is_refused_not_dropped() -> None:
+        # It used to be neither decoded nor refused. mock has no effort knob, so
+        # this is a 400 that names the backend rather than a silent 200.
+        e = expect_error(openai.BadRequestError, lambda: client.chat.completions.create(
+            model="mock:ok", messages=[{"role": "user", "content": "hi"}],
+            reasoning_effort="high"), status=400)
+        assert "mock" in str(e), str(e)
+
+    def unknown_reasoning_effort_is_the_callers_mistake() -> None:
+        # Outside the vocabulary entirely: refused before any backend is asked,
+        # so the message talks about the value, not about mock.
+        e = expect_error(openai.BadRequestError, lambda: client.chat.completions.create(
+            model="mock:ok", messages=[{"role": "user", "content": "hi"}],
+            reasoning_effort="turbo"), status=400)
+        assert "unknown reasoning effort" in str(e), str(e)
+
     def response_format_is_refused_not_dropped() -> None:
         # It used to be neither decoded nor refused: a caller asking for JSON got
         # prose and a 200. mock cannot hold a schema, so this is a 400 naming it.
@@ -226,6 +242,8 @@ def openai_cases(suite: Suite, base_url: str, api_key: str) -> None:
         ("request id header", request_id_header),
         ("unknown model is 404", unknown_model),
         ("response_format is refused, not dropped", response_format_is_refused_not_dropped),
+        ("reasoning_effort is refused, not dropped", reasoning_effort_is_refused_not_dropped),
+        ("unknown reasoning effort is the caller's mistake", unknown_reasoning_effort_is_the_callers_mistake),
         ("tools are refused", tools_rejected),
         ("bad key is 401", bad_key),
         ("upstream failures keep their status", upstream_errors),
@@ -328,6 +346,17 @@ def responses_cases(suite: Suite, base_url: str, api_key: str) -> None:
             status=400)
         assert "mock" in str(e), str(e)
 
+    def reasoning_effort_refused_by_backend() -> None:
+        e = expect_error(openai.BadRequestError, lambda: client.responses.create(
+            model="mock:ok", input="hi", reasoning={"effort": "high"}), status=400)
+        assert "mock" in str(e), str(e)
+
+    def reasoning_summary_is_not_refused() -> None:
+        # `summary` is not something a CLI can honour, but it must not turn the
+        # request into a refusal on its own.
+        r = client.responses.create(model="mock:ok", input="hi", reasoning={"summary": "auto"})
+        assert r.status == "completed", r.status
+
     def json_object_refused() -> None:
         expect_error(openai.BadRequestError, lambda: client.responses.create(
             model="mock:ok", input="hi", text={"format": {"type": "json_object"}}), status=400)
@@ -367,6 +396,8 @@ def responses_cases(suite: Suite, base_url: str, api_key: str) -> None:
     run("refusals", refusals)
     run("structured output refused by backend", structured_output_refused_by_backend)
     run("json_object refused", json_object_refused)
+    run("reasoning effort refused by backend", reasoning_effort_refused_by_backend)
+    run("reasoning summary is not refused", reasoning_summary_is_not_refused)
     run("crash mid-stream", crash_mid_stream)
     run("bad key", bad_key)
 
@@ -451,6 +482,14 @@ def anthropic_cases(suite: Suite, base_url: str, api_key: str) -> None:
             model="mock:ok", max_tokens=8, messages=[{"role": "user", "content": "hi"}],
             stop_sequences=["END"]), status=400, message="stop sequences")
 
+    def thinking_budget_is_refused() -> None:
+        # This dialect measures thinking in tokens; the backends measure it in
+        # levels, and there is no honest conversion between them.
+        e = expect_error(anthropic.BadRequestError, lambda: client.messages.create(
+            model="mock:ok", max_tokens=64, messages=[{"role": "user", "content": "hi"}],
+            thinking={"type": "enabled", "budget_tokens": 2048}), status=400)
+        assert "token budget" in str(e), str(e)
+
     def bad_key() -> None:
         wrong = anthropic.Anthropic(base_url=base_url, api_key="sk-wrong", max_retries=0, timeout=TIMEOUT)
         expect_error(anthropic.AuthenticationError, lambda: wrong.messages.create(
@@ -502,6 +541,7 @@ def anthropic_cases(suite: Suite, base_url: str, api_key: str) -> None:
         ("request id header", request_id_header),
         ("unknown model is 404", unknown_model),
         ("tools are refused", tools_rejected),
+        ("thinking budget is refused", thinking_budget_is_refused),
         ("stop sequences are refused", stop_sequences_rejected),
         ("bad key is 401", bad_key),
         ("upstream failures keep their status", upstream_errors),

@@ -338,3 +338,78 @@ func TestResponseFormatShapes(t *testing.T) {
 		})
 	}
 }
+
+// reasoning_effort was neither decoded nor refused before #20, so a caller
+// asking the model to think harder got a 200 and no sign it was dropped.
+func TestReasoningEffortReachesTheAdapter(t *testing.T) {
+	b := fake.New("fake", "reply")
+	b.Efforts = []ir.Effort{ir.EffortLow, ir.EffortHigh}
+	rec := post(t, testHandler(t, b),
+		`{"model":"fake","messages":[{"role":"user","content":"hi"}],"reasoning_effort":"high"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body.String())
+	}
+	if len(b.Requests) != 1 || b.Requests[0].Effort != ir.EffortHigh {
+		t.Errorf("Effort = %q, want high", b.Requests[0].Effort)
+	}
+}
+
+func TestReasoningEffortRefusals(t *testing.T) {
+	tests := []struct {
+		name    string
+		levels  []ir.Effort
+		effort  string
+		wantMsg string
+	}{
+		{
+			// The backend has no knob at all: name it, so the caller knows
+			// another model would serve this.
+			"backend has no knob", nil, "high", "fake",
+		},
+		{
+			// It has a knob but not this level. minimal is not low, and
+			// rounding one to the other without saying so is the thing #20
+			// exists to stop.
+			"level the backend lacks", []ir.Effort{ir.EffortLow, ir.EffortHigh}, "minimal", "it takes low, high",
+		},
+		{
+			// Outside the vocabulary entirely: the caller's mistake, refused
+			// before any backend is consulted.
+			"not a level", []ir.Effort{ir.EffortLow}, "turbo", "unknown reasoning effort",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			b := fake.New("fake", "reply")
+			b.Efforts = tc.levels
+			rec := post(t, testHandler(t, b),
+				`{"model":"fake","messages":[{"role":"user","content":"hi"}],"reasoning_effort":"`+tc.effort+`"}`)
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("status = %d, want 400: %s", rec.Code, rec.Body.String())
+			}
+			var env errorEnvelope
+			if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
+				t.Fatal(err)
+			}
+			if env.Error.Param != "reasoning_effort" {
+				t.Errorf("param = %q", env.Error.Param)
+			}
+			if !strings.Contains(env.Error.Message, tc.wantMsg) {
+				t.Errorf("message = %q, want it to mention %q", env.Error.Message, tc.wantMsg)
+			}
+		})
+	}
+}
+
+// Absent means absent: no effort is invented for a backend that has levels.
+func TestNoEffortIsNotAnEffort(t *testing.T) {
+	b := fake.New("fake", "reply")
+	b.Efforts = []ir.Effort{ir.EffortLow, ir.EffortHigh}
+	if rec := post(t, testHandler(t, b),
+		`{"model":"fake","messages":[{"role":"user","content":"hi"}]}`); rec.Code != http.StatusOK {
+		t.Fatalf("status = %d", rec.Code)
+	}
+	if b.Requests[0].Effort != "" {
+		t.Errorf("Effort = %q, want empty", b.Requests[0].Effort)
+	}
+}

@@ -130,10 +130,10 @@ so it costs nothing:
 config file: none (using built-in defaults)
 
 ADAPTER      STATUS  BINARY                              VERSION                ACCOUNT          MODELS
-claude-code  ok      /Users/you/.local/bin/claude        2.1.267 (Claude Code)  you@example.com  claude-code, claude-code:<model>
+claude-code  ok      /Users/you/.local/bin/claude        2.1.274 (Claude Code)  you@example.com  claude-code, claude-code:<model>
 codex        ok      /Users/you/.local/bin/codex         codex-cli 0.154.0      ChatGPT          codex, codex:<model>
-cursor       ok      /Users/you/.local/bin/cursor-agent  2026.09.08-6caf4ff     you@example.com  cursor, cursor:<model>
-qwen-code    ok      /Users/you/.local/bin/qwen          0.23.2                 -                qwen-code, qwen-code:<model>
+cursor       ok      /Users/you/.local/bin/cursor-agent  2026.09.15-d2fe57e     you@example.com  cursor, cursor:<model>
+qwen-code    ok      /Users/you/.local/bin/qwen          0.24.0                 -                qwen-code, qwen-code:<model>
 ```
 
 Backends marked `unavailable` are simply skipped at startup; `doctor` exits
@@ -175,6 +175,9 @@ These return a clear `400` rather than a wrong answer:
 - Responses `include`.
 - `stop` / `stop_sequences`: no agent CLI can enforce them, and returning text
   the caller asked to have cut would be worse than refusing.
+- Anthropic `thinking.budget_tokens`, and any reasoning-effort level
+  (`reasoning_effort`, `reasoning.effort`, `thinking.type`) a backend has no
+  knob for.
 - A conversation over 96 KiB on the `cursor` backend: that CLI takes its prompt
   as a command-line argument, which the OS bounds.
 

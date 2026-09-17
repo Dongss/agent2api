@@ -21,15 +21,16 @@ type chatRequest struct {
 	MaxCompletionTokens *int     `json:"max_completion_tokens"`
 
 	// Refused with 400 when present; see validate.
-	Stop           json.RawMessage `json:"stop"`
-	N              *int            `json:"n"`
-	Logprobs       *bool           `json:"logprobs"`
-	TopLogprobs    *int            `json:"top_logprobs"`
-	ResponseFormat json.RawMessage `json:"response_format"`
-	Tools          json.RawMessage `json:"tools"`
-	ToolChoice     json.RawMessage `json:"tool_choice"`
-	Functions      json.RawMessage `json:"functions"`
-	FunctionCall   json.RawMessage `json:"function_call"`
+	Stop            json.RawMessage `json:"stop"`
+	N               *int            `json:"n"`
+	Logprobs        *bool           `json:"logprobs"`
+	TopLogprobs     *int            `json:"top_logprobs"`
+	ReasoningEffort string          `json:"reasoning_effort"`
+	ResponseFormat  json.RawMessage `json:"response_format"`
+	Tools           json.RawMessage `json:"tools"`
+	ToolChoice      json.RawMessage `json:"tool_choice"`
+	Functions       json.RawMessage `json:"functions"`
+	FunctionCall    json.RawMessage `json:"function_call"`
 
 	User string `json:"user"`
 }

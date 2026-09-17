@@ -30,6 +30,20 @@ type SchemaEnforcer interface {
 	EnforcesSchema(ctx context.Context) bool
 }
 
+// EffortSetter is implemented by adapters whose CLI has a knob for how hard the
+// model thinks.
+//
+// It reports the levels rather than a yes/no because the CLIs do not agree on a
+// scale: Claude Code takes low through max and has no `minimal`, OpenAI's
+// vocabulary has no `max`. A frontend asks for the list so it can refuse a level
+// this backend does not have by naming both — which beats rounding the caller's
+// request to the nearest neighbour and not saying so.
+//
+// A nil or empty result means the installed CLI offers no such knob.
+type EffortSetter interface {
+	EffortLevels(ctx context.Context) []ir.Effort
+}
+
 // Health is the outcome of probing a backend, as reported by `agent2api doctor`.
 type Health struct {
 	// Binary is the resolved absolute path of the CLI, when it was found.

@@ -52,6 +52,39 @@ type Usage struct {
 	ReasoningOutputTokens int
 }
 
+// Effort is how hard the caller asked the model to think.
+//
+// The values are the union of what the dialects and the CLIs use, carried
+// verbatim rather than normalised: the vocabularies do not line up, and mapping
+// one onto another would mean inventing a correspondence. `minimal` has no
+// counterpart in Claude Code's scale and `max` has none in OpenAI's, so a
+// backend that cannot take a level refuses it by name instead of rounding it to
+// a neighbour.
+type Effort string
+
+const (
+	EffortMinimal Effort = "minimal"
+	EffortLow     Effort = "low"
+	EffortMedium  Effort = "medium"
+	EffortHigh    Effort = "high"
+	EffortXHigh   Effort = "xhigh"
+	EffortMax     Effort = "max"
+)
+
+// Efforts is every level a frontend will decode. A value outside it is the
+// caller's mistake and is refused before any backend is consulted.
+var Efforts = []Effort{EffortMinimal, EffortLow, EffortMedium, EffortHigh, EffortXHigh, EffortMax}
+
+// ValidEffort reports whether s names a level.
+func ValidEffort(s string) bool {
+	for _, e := range Efforts {
+		if Effort(s) == e {
+			return true
+		}
+	}
+	return false
+}
+
 // StopReason mirrors the Anthropic vocabulary; frontends map it into their own.
 type StopReason string
 

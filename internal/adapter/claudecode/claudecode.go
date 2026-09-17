@@ -88,6 +88,26 @@ func New(opts adapter.Options) (adapter.Adapter, error) {
 // ID implements adapter.Adapter.
 func (a *Adapter) ID() string { return ID }
 
+// effortLevels are the values `--effort` documents. OpenAI's `minimal` is
+// deliberately absent: this scale starts at low, and treating the two as the
+// same level would be a guess dressed as a mapping.
+var effortLevels = []ir.Effort{ir.EffortLow, ir.EffortMedium, ir.EffortHigh, ir.EffortXHigh, ir.EffortMax}
+
+// EffortLevels implements adapter.EffortSetter.
+//
+// How much a level changes depends on the model behind it, which the adapter
+// cannot know from a flag: measured on 2.1.274, `sonnet` spent 0 thinking
+// tokens at `low` and ~130 at `max`, while `haiku` showed no separation across
+// three runs at each end. The flag is passed on either way — what the model
+// then does with it is the model's business, the same as `temperature`.
+func (a *Adapter) EffortLevels(ctx context.Context) []ir.Effort {
+	caps, err := a.probe.Caps(ctx)
+	if err != nil || !caps.Has("--effort") {
+		return nil
+	}
+	return effortLevels
+}
+
 // EnforcesSchema implements adapter.SchemaEnforcer. The CLI holds the answer to
 // a caller's JSON Schema with `--json-schema`; an install too old for the flag
 // says so, and the frontend refuses the request rather than returning JSON
@@ -196,6 +216,10 @@ func (a *Adapter) buildArgs(caps *agentcli.Caps, req ir.Request, rendered prompt
 	// mean the caller was promised something the CLI cannot do.
 	if req.Schema != "" && caps.Has("--json-schema") {
 		args = append(args, "--json-schema", req.Schema)
+	}
+	// Only ever set once EffortLevels listed it, so the flag is known present.
+	if req.Effort != "" && caps.Has("--effort") {
+		args = append(args, "--effort", string(req.Effort))
 	}
 
 	stdin = rendered.Prompt

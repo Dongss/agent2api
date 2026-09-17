@@ -23,7 +23,8 @@ type messagesRequest struct {
 	TopP        *float64 `json:"top_p"`
 	TopK        *int     `json:"top_k"`
 
-	// Accepted and ignored: the CLI decides its own thinking budget.
+	// `type` selects whether the model thinks; `budget_tokens` is refused,
+	// because a token budget is not a level and the backends take levels.
 	Thinking json.RawMessage `json:"thinking"`
 
 	// Refused with 400 when present; see validate.
@@ -152,4 +153,10 @@ type errorEnvelope struct {
 type errorBody struct {
 	Type    string `json:"type"`
 	Message string `json:"message"`
+}
+
+// thinkingRequest is the `thinking` field.
+type thinkingRequest struct {
+	Type         string `json:"type"`
+	BudgetTokens *int   `json:"budget_tokens"`
 }

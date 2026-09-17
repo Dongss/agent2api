@@ -64,6 +64,17 @@ func (r Resolution) EnforcesSchema(ctx context.Context) bool {
 	return ok && e.EnforcesSchema(ctx)
 }
 
+// EffortLevels reports the reasoning-effort levels the resolved backend takes,
+// empty when it has no such knob. Frontends ask before accepting a caller's
+// level, so a refusal can name the backend and say what it does take.
+func (r Resolution) EffortLevels(ctx context.Context) []ir.Effort {
+	e, ok := r.Adapter.(adapter.EffortSetter)
+	if !ok {
+		return nil
+	}
+	return e.EffortLevels(ctx)
+}
+
 // Resolve maps a requested model name to its adapter.
 func (r *Router) Resolve(name string) (Resolution, error) {
 	name = strings.TrimSpace(name)

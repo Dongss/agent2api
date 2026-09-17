@@ -42,6 +42,16 @@ func (g *gated) EnforcesSchema(ctx context.Context) bool {
 	return ok && e.EnforcesSchema(ctx)
 }
 
+// EffortLevels forwards the capability query to the wrapped adapter, for the
+// reason given on EnforcesSchema above.
+func (g *gated) EffortLevels(ctx context.Context) []ir.Effort {
+	e, ok := g.Adapter.(adapter.EffortSetter)
+	if !ok {
+		return nil
+	}
+	return e.EffortLevels(ctx)
+}
+
 // Run holds a slot for the whole life of the run, releasing it once the
 // underlying adapter closes its event channel or the caller goes away.
 func (g *gated) Run(ctx context.Context, req ir.Request) (<-chan ir.Event, error) {
