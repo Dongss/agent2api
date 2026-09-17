@@ -1,6 +1,7 @@
 package anthropic
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -63,6 +64,19 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ctx := r.Context()
+
+	want, err := req.thinkingEffort()
+	if err != nil {
+		WriteError(w, err)
+		return
+	}
+	effort, err := effortFor(ctx, res, want, "thinking")
+	if err != nil {
+		WriteError(w, err)
+		return
+	}
+
 	irReq := ir.Request{
 		Model:       res.Model,
 		Adapter:     res.Adapter.ID(),
@@ -71,12 +85,12 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		Stream:      req.Stream,
 		MaxTokens:   req.MaxTokens,
 		Temperature: req.Temperature,
+		Effort:      effort,
 	}
 	if req.Metadata != nil && req.Metadata.UserID != "" {
 		irReq.Metadata = map[string]string{"user": req.Metadata.UserID}
 	}
 
-	ctx := r.Context()
 	events, err := res.Adapter.Run(ctx, irReq)
 	if err != nil {
 		WriteError(w, err)
@@ -166,6 +180,76 @@ func (m *messagesRequest) validate() error {
 		return ir.InvalidRequest("tool_choice", "client tool calling is not supported")
 	}
 	return nil
+}
+
+// effortFor decodes a caller's reasoning-effort request against what the
+// resolved backend takes.
+//
+// Two different refusals, deliberately: a level outside the vocabulary is the
+// caller's mistake and needs no backend, while a level the backend has no knob
+// for names that backend and lists what it does take. Neither rounds the
+// request to a neighbouring level — `minimal` is not `low`, and a caller who
+// asked for one did not ask for the other.
+func effortFor(ctx context.Context, res router.Resolution, want, param string) (ir.Effort, error) {
+	if want == "" {
+		return "", nil
+	}
+	if !ir.ValidEffort(want) {
+		return "", ir.InvalidRequest(param, "unknown reasoning effort %q; it must be one of %s",
+			want, effortList(ir.Efforts))
+	}
+	levels := res.EffortLevels(ctx)
+	if len(levels) == 0 {
+		return "", ir.InvalidRequest(param,
+			"the %s backend has no reasoning-effort setting; ask for a model whose CLI does, or drop %s",
+			res.Adapter.ID(), param)
+	}
+	for _, l := range levels {
+		if l == ir.Effort(want) {
+			return l, nil
+		}
+	}
+	return "", ir.InvalidRequest(param,
+		"the %s backend does not take reasoning effort %q; it takes %s",
+		res.Adapter.ID(), want, effortList(levels))
+}
+
+func effortList(levels []ir.Effort) string {
+	out := make([]string, len(levels))
+	for i, l := range levels {
+		out[i] = string(l)
+	}
+	return strings.Join(out, ", ")
+}
+
+// thinkingEffort reads the `thinking` object.
+//
+// This dialect measures thinking in tokens where the backends measure it in
+// levels, and there is no honest conversion: any threshold picking which budget
+// becomes "high" would be invented here and defended nowhere. So a budget is
+// refused, and only the on/off switch is carried — `enabled` asks for the
+// backend's top level, `disabled` for its lowest, which are the two points the
+// two vocabularies genuinely share.
+func (m *messagesRequest) thinkingEffort() (string, error) {
+	if isEmptyJSON(m.Thinking) {
+		return "", nil
+	}
+	var t thinkingRequest
+	if err := json.Unmarshal(m.Thinking, &t); err != nil {
+		return "", ir.InvalidRequest("thinking", "thinking must be an object")
+	}
+	if t.BudgetTokens != nil {
+		return "", ir.InvalidRequest("thinking.budget_tokens",
+			"the backends take a reasoning-effort level, not a token budget, and there is no honest conversion between them; set thinking.type and pick the level with the model name, or use reasoning_effort on /v1/chat/completions")
+	}
+	switch t.Type {
+	case "", "disabled":
+		return "", nil
+	case "enabled":
+		return string(ir.EffortHigh), nil
+	default:
+		return "", ir.InvalidRequest("thinking.type", "unknown thinking type %q", t.Type)
+	}
 }
 
 // toMessages converts the wire request into IR. The system field becomes a

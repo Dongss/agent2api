@@ -188,3 +188,19 @@ func TestWrapForwardsSchemaCapability(t *testing.T) {
 		t.Error("EnforcesSchema = true for a backend that says it cannot")
 	}
 }
+
+// The gate embeds the Adapter interface, so every optional capability needs
+// forwarding of its own; #14 found this the hard way with schemas.
+func TestWrapForwardsEffortLevels(t *testing.T) {
+	backend := fake.New("fake", "reply")
+	backend.Efforts = []ir.Effort{ir.EffortLow, ir.EffortMax}
+
+	wrapped := Wrap(backend, 2, time.Second)
+	e, ok := wrapped.(adapter.EffortSetter)
+	if !ok {
+		t.Fatal("the wrapped adapter no longer reports the capability at all")
+	}
+	if got := e.EffortLevels(context.Background()); len(got) != 2 {
+		t.Errorf("EffortLevels = %v through the gate, want both levels", got)
+	}
+}

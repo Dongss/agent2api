@@ -394,3 +394,43 @@ func TestSchemaReachesTheAdapter(t *testing.T) {
 		})
 	}
 }
+
+func TestReasoningEffortReachesTheAdapter(t *testing.T) {
+	b := fake.New("fake", "Mock reply.")
+	b.Efforts = []ir.Effort{ir.EffortLow, ir.EffortHigh}
+	h := newTestHandler(t, b)
+	if rec := post(t, h, `{"model":"fake","input":"hi","reasoning":{"effort":"high"}}`); rec.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body.String())
+	}
+	if b.Requests[0].Effort != ir.EffortHigh {
+		t.Errorf("Effort = %q, want high", b.Requests[0].Effort)
+	}
+}
+
+// The refusal names the backend and says what it does take, so the caller can
+// act on it rather than reading it as a gateway-wide limitation.
+func TestReasoningEffortRefusalNamesTheBackend(t *testing.T) {
+	h := plain(t) // the fake claims no levels by default
+	rec := post(t, h, `{"model":"fake","input":"hi","reasoning":{"effort":"high"}}`)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400: %s", rec.Code, rec.Body.String())
+	}
+	var env errorEnvelope
+	if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
+		t.Fatal(err)
+	}
+	if env.Error.Param != "reasoning.effort" || !strings.Contains(env.Error.Message, "fake") {
+		t.Errorf("param=%q message=%q", env.Error.Param, env.Error.Message)
+	}
+}
+
+// `summary` is not something any CLI can honour; it must not turn into a
+// refusal, because the caller can still have the effort side served.
+func TestReasoningSummaryIsIgnoredNotRefused(t *testing.T) {
+	b := fake.New("fake", "Mock reply.")
+	b.Efforts = []ir.Effort{ir.EffortHigh}
+	h := newTestHandler(t, b)
+	if rec := post(t, h, `{"model":"fake","input":"hi","reasoning":{"effort":"high","summary":"auto"}}`); rec.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body.String())
+	}
+}

@@ -86,6 +86,25 @@ func New(opts adapter.Options) (adapter.Adapter, error) {
 // ID implements adapter.Adapter.
 func (a *Adapter) ID() string { return ID }
 
+// effortLevels are the values passed through to `model_reasoning_effort`.
+// `max` is absent: it belongs to Claude Code's scale, not this one.
+var effortLevels = []ir.Effort{ir.EffortMinimal, ir.EffortLow, ir.EffortMedium, ir.EffortHigh, ir.EffortXHigh}
+
+// EffortLevels implements adapter.EffortSetter.
+//
+// The knob is a config override rather than a flag, and `-c` is always
+// available, so there is nothing to probe for.
+//
+// Worth knowing before trusting a level end to end: codex turns it into a
+// `thinking_budget` for the upstream endpoint, and the endpoint decides whether
+// that number is acceptable. Against the third-party provider on the recording
+// machine, `low` worked and `high` came back `400 InternalError.Algo.
+// InvalidParameter: The thinking_budget parameter must be a positive integer
+// and not greater than …`. That surfaces as an honest upstream error rather
+// than a silent downgrade, which is the behaviour to keep — but it means a
+// level this adapter accepts can still be refused further up.
+func (a *Adapter) EffortLevels(context.Context) []ir.Effort { return effortLevels }
+
 // Probe checks that the CLI is installed, exposes the flags agent2api needs,
 // and is logged in. It sends no prompt, so it costs nothing.
 func (a *Adapter) Probe(ctx context.Context) (adapter.Health, error) {
@@ -195,6 +214,9 @@ func (a *Adapter) buildArgs(caps *agentcli.Caps, req ir.Request, dir string) []s
 	}
 	if req.Variant != "" && caps.Has("--model") {
 		args = append(args, "--model", req.Variant)
+	}
+	if req.Effort != "" {
+		args = append(args, "-c", "model_reasoning_effort="+string(req.Effort))
 	}
 	args = append(args, a.opts.Config.ExtraArgs...)
 	return append(args, "-")

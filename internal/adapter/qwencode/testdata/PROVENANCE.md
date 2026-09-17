@@ -1,7 +1,7 @@
 # Where this fixture comes from
 
 `simple.jsonl` is a recording of a real `qwen` run, verified against Qwen Code
-`0.23.2`, captured with the argv the adapter itself builds:
+`0.24.0`, captured with the argv the adapter itself builds:
 
 ```sh
 qwen --output-format stream-json
@@ -82,8 +82,8 @@ rather than exactly, so those survive a re-record.
 
 ## History
 
-Recorded on 0.22.3, re-checked on 0.23.2: no event type, `result` key or `usage`
+Recorded on 0.22.3, re-checked on 0.23.2 and 0.24.0: no event type, `result` key or `usage`
 key changed, and `system`/`init` still reports `tools: []` under the generated
 settings — the containment survives the upgrade, which is the check that
-matters. The 0.23.2 run answered without a reasoning block, which is ordinary
-variation rather than a change; the recording keeps one.
+matters. Neither re-check produced a reasoning block, which is ordinary variation
+rather than a change; the recording keeps one.

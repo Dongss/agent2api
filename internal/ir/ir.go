@@ -47,6 +47,12 @@ type Request struct {
 	// can enforce one, so an adapter that receives it must honour it or fail.
 	Schema string
 
+	// Effort, when non-empty, is how hard the caller asked the model to think.
+	// Like Schema and unlike MaxTokens, it is only set after the backend has
+	// said it takes that particular level, so an adapter receiving it has a
+	// flag to put it on.
+	Effort Effort
+
 	// Metadata carries non-essential request annotations (e.g. the caller's
 	// "user" field). Never used for routing.
 	Metadata map[string]string

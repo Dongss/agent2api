@@ -278,3 +278,51 @@ func TestUpstreamErrorMapping(t *testing.T) {
 		})
 	}
 }
+
+// This dialect measures thinking in tokens and the backends measure it in
+// levels. Refusing the budget is the decision recorded in #20: any threshold
+// turning a number into a level would be invented here.
+func TestThinkingBudgetIsRefused(t *testing.T) {
+	b := fake.New("fake", "reply")
+	b.Efforts = []ir.Effort{ir.EffortLow, ir.EffortHigh}
+	rec := post(t, testHandler(t, b),
+		`{"model":"fake","max_tokens":64,"messages":[{"role":"user","content":"hi"}],
+		  "thinking":{"type":"enabled","budget_tokens":2048}}`)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400: %s", rec.Code, rec.Body.String())
+	}
+	var env errorEnvelope
+	if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(env.Error.Message, "not a token budget") {
+		t.Errorf("message = %q, want it to explain why", env.Error.Message)
+	}
+}
+
+// The on/off switch is the one thing the two vocabularies share.
+func TestThinkingSwitch(t *testing.T) {
+	tests := []struct {
+		name     string
+		thinking string
+		want     ir.Effort
+	}{
+		{"enabled asks for the top level", `,"thinking":{"type":"enabled"}`, ir.EffortHigh},
+		{"disabled asks for none", `,"thinking":{"type":"disabled"}`, ""},
+		{"absent asks for none", ``, ""},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			b := fake.New("fake", "reply")
+			b.Efforts = []ir.Effort{ir.EffortLow, ir.EffortHigh}
+			rec := post(t, testHandler(t, b),
+				`{"model":"fake","max_tokens":64,"messages":[{"role":"user","content":"hi"}]`+tc.thinking+`}`)
+			if rec.Code != http.StatusOK {
+				t.Fatalf("status = %d: %s", rec.Code, rec.Body.String())
+			}
+			if got := b.Requests[0].Effort; got != tc.want {
+				t.Errorf("Effort = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}

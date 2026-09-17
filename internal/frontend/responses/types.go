@@ -27,8 +27,8 @@ type responsesRequest struct {
 	User     string            `json:"user"`
 
 	// Reasoning selects how much reasoning the model does and whether it is
-	// summarised. Only the summary side is meaningful here, and only as a
-	// request to be passed nowhere: no CLI takes a knob for it.
+	// summarised. The effort side reaches backends that have a knob for it; the
+	// summary side is not a request any CLI can honour and is ignored.
 	Reasoning json.RawMessage `json:"reasoning"`
 
 	// Everything below is refused.
@@ -292,4 +292,10 @@ type errBody struct {
 	Type    string `json:"type"`
 	Param   string `json:"param,omitempty"`
 	Code    string `json:"code,omitempty"`
+}
+
+// reasoningRequest is the `reasoning` field. Only `effort` is acted on.
+type reasoningRequest struct {
+	Effort  string `json:"effort"`
+	Summary string `json:"summary"`
 }

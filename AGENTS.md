@@ -43,10 +43,13 @@ meets at `ir`.
   defaults live in Go (`defaults.go`), and `agent2api.example.yaml` documents
   every key — a test fails if the two drift.
 - **`config print` and the logs redact anything that can hold a credential.**
-- **A capability is per-installed-CLI, not per-adapter.** Structured output is
-  the first: `adapter.SchemaEnforcer` is an optional interface, answered by
-  probing the binary's flags, and a frontend asks before accepting a schema so
-  the refusal names the backend. Anything wrapping an adapter must forward such
+- **A capability is per-installed-CLI, not per-adapter.** Structured output was
+  the first and reasoning effort the second: `adapter.SchemaEnforcer` and
+  `adapter.EffortSetter` are optional interfaces, answered by probing the
+  binary's flags, and a frontend asks before accepting the parameter so the
+  refusal names the backend. Where the vocabularies disagree the gap stays
+  visible — `EffortSetter` reports the levels it has rather than a yes/no, so a
+  level a backend lacks is refused by name instead of rounded to a neighbour. Anything wrapping an adapter must forward such
   an interface explicitly — embedding `adapter.Adapter` promotes only the
   methods that interface declares, so `gate` silently dropped it until told not
   to.

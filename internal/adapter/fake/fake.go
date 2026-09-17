@@ -39,6 +39,8 @@ type Adapter struct {
 	// Schema, when set, makes the adapter report that it can hold an answer to
 	// a JSON Schema, so a frontend accepts one instead of refusing it.
 	Schema bool
+	// Efforts, when set, are the reasoning-effort levels this backend claims.
+	Efforts []ir.Effort
 
 	// Requests records what the gateway asked for.
 	Requests []ir.Request
@@ -59,6 +61,9 @@ func (a *Adapter) ID() string {
 	}
 	return a.AdapterID
 }
+
+// EffortLevels implements adapter.EffortSetter.
+func (a *Adapter) EffortLevels(context.Context) []ir.Effort { return a.Efforts }
 
 // EnforcesSchema implements adapter.SchemaEnforcer.
 func (a *Adapter) EnforcesSchema(context.Context) bool { return a.Schema }
