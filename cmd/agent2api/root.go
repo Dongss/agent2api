@@ -16,8 +16,9 @@ import (
 	"github.com/Dongss/agent2api/internal/version"
 )
 
-const rootLong = `agent2api exposes the agent CLIs installed on this machine (Claude Code, and
-more to come) as OpenAI- and Anthropic-compatible HTTP APIs.
+const rootLong = `agent2api exposes the agent CLIs installed on this machine
+(Claude Code, Codex, Cursor, Qwen Code) as OpenAI- and Anthropic-compatible
+HTTP APIs.
 
 Point any OpenAI SDK at the gateway's base URL and requests are translated into
 a local CLI invocation. Every request is independent: the whole conversation is
