@@ -1,7 +1,7 @@
 # Where this fixture comes from
 
 `simple.jsonl` is a recording of a real `qwen` run, verified against Qwen Code
-`0.24.0`, captured with the argv the adapter itself builds:
+`0.24.2`, captured with the argv the adapter itself builds:
 
 ```sh
 qwen --output-format stream-json
@@ -34,7 +34,9 @@ adapter generates — the file that leaves the CLI no tools. It reported
 
 **Tools available.** Covered by `TestToolsAvailableFailsTheRun` from a
 constructed transcript: recording it would mean deliberately running the CLI
-uncontained, which is the one thing this adapter exists to prevent.
+uncontained, which is the one thing this adapter exists to prevent. It is not a
+hypothetical — see the 0.24.2 entry under History, where the CLI produced this
+shape on its own.
 
 **An upstream API failure.** The CLI reports one as `is_error: false`,
 `subtype: "success"`, `error: null`, with the error as the assistant's answer:
@@ -82,8 +84,25 @@ rather than exactly, so those survive a re-record.
 
 ## History
 
-Recorded on 0.22.3, re-checked on 0.23.2 and 0.24.0: no event type, `result` key or `usage`
-key changed, and `system`/`init` still reports `tools: []` under the generated
-settings — the containment survives the upgrade, which is the check that
-matters. Neither re-check produced a reasoning block, which is ordinary variation
-rather than a change; the recording keeps one.
+Recorded on 0.22.3, re-checked on 0.23.2, 0.24.0 and 0.24.2: no event type,
+`result` key or `usage` key has changed across any of them. No re-check produced
+a reasoning block, which is ordinary variation rather than a change; the
+recording keeps one.
+
+0.24.2 is the one that earned its keep. It ships a new built-in, `tool_call`,
+which the core-tool allowlist and the deny list both let through, so
+`system`/`init` came back reporting `tools: ["tool_call"]` under settings that
+had left every previous release with none. Nothing about the transcript's shape
+changed — the containment did.
+
+That is the case this directory's containment check and the runtime one were
+written for, and both behaved. `TestFixtureStartsWithNoTools` keeps a recording
+made under the broken settings out of the golden file; `parser.system` failed
+the live run with a 502 naming the tool, so the request errored instead of
+reaching a model that could shell out. Adding `tool_call` to `deniedTools`
+restored `tools: []`.
+
+The lesson is about which line holds. The deny list could not have anticipated
+this entry and will not anticipate the next one; the assertion on the CLI's own
+reported tool list needed no foresight. Keep new releases going through it
+rather than through a longer deny list.

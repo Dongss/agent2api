@@ -1,7 +1,7 @@
 # Where these fixtures come from
 
 All three files are recordings of real `codex exec --json` runs, verified
-against codex-cli `0.154.0`, captured with the argv the adapter itself builds:
+against codex-cli `0.155.1`, captured with the argv the adapter itself builds:
 
 ```sh
 codex exec --json --sandbox read-only --skip-git-repo-check --cd <scratch> \
@@ -93,7 +93,7 @@ than in full — a 632-byte paragraph inline would bury what the test is for.
 ## History
 
 Recorded on 0.149.1, replacing files from 0.148.0; re-checked on 0.150.1,
-0.151.0 and 0.154.0. No shape has changed across any of them.
+0.151.0, 0.154.0 and 0.155.1. No shape has changed across any of them.
 
 Two things about that list are worth keeping.
 

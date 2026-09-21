@@ -1,7 +1,7 @@
 # Where this fixture comes from
 
 `simple.stream.jsonl` is a recording of a real `claude` run in headless print
-mode, verified against Claude Code `2.1.274`, captured with the argv the adapter
+mode, verified against Claude Code `2.1.278`, captured with the argv the adapter
 itself builds:
 
 ```sh
@@ -92,8 +92,9 @@ so those survive a re-record.
 
 ## History
 
-Recorded on 2.1.231 (2026-08-25), re-checked on 2.1.236, 2.1.267 and 2.1.274, replacing a file whose
-CLI version was never written down — the reason this one exists. That older
+Recorded on 2.1.231 (2026-08-25), re-checked on 2.1.236, 2.1.267, 2.1.274 and
+2.1.278, replacing a file whose CLI version was never written down — the reason
+this one exists. That older
 recording's `result` line lacked one key 2.1.231 emits,
 `usage.output_tokens_details`, which the parser does not read; nothing the parser
 does read has changed since.
@@ -101,4 +102,5 @@ does read has changed since.
 Since 2.1.236 the CLI has changed two kinds of thing, none of them a field the
 parser reads. It stopped emitting `system`/`thinking_tokens` at 2.1.267, and its
 `result` line has gained `first_content_frame_ms`, `queued_turn_count` and
-`subagent_stats` (2.1.267) and `result_index` (2.1.274).
+`subagent_stats` (2.1.267) and `result_index` (2.1.274). 2.1.278 added
+nothing.

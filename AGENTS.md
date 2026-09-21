@@ -1,8 +1,8 @@
 # Working on agent2api
 
 agent2api exposes the agent CLIs installed on a machine (Claude Code, Codex,
-Cursor) as OpenAI- and Anthropic-compatible HTTP APIs. It drives them as plain
-LLMs: tools off, empty scratch workdir, allowlisted environment.
+Cursor, Qwen Code) as OpenAI- and Anthropic-compatible HTTP APIs. It drives
+them as plain LLMs: tools off, empty scratch workdir, allowlisted environment.
 
 ```sh
 go test ./...              # no CLI or account required
@@ -48,11 +48,12 @@ meets at `ir`.
   `adapter.EffortSetter` are optional interfaces, answered by probing the
   binary's flags, and a frontend asks before accepting the parameter so the
   refusal names the backend. Where the vocabularies disagree the gap stays
-  visible — `EffortSetter` reports the levels it has rather than a yes/no, so a
-  level a backend lacks is refused by name instead of rounded to a neighbour. Anything wrapping an adapter must forward such
-  an interface explicitly — embedding `adapter.Adapter` promotes only the
-  methods that interface declares, so `gate` silently dropped it until told not
-  to.
+  visible — `EffortSetter` reports the levels it has rather than a yes/no, so
+  a level a backend lacks is refused by name instead of rounded to a
+  neighbour.
+  Anything wrapping an adapter must forward such an interface explicitly —
+  embedding `adapter.Adapter` promotes only the methods that interface
+  declares, so `gate` silently dropped it until told not to.
 - **`update` verifies or refuses.** The install scripts warn and continue when
   `checksums.txt` is missing — reasonable when creating a file that did not
   exist. `update` overwrites a binary the user already trusts, so an absent or

@@ -72,6 +72,10 @@ const noSuchTool = "__agent2api_no_tools__"
 // the model reaches the tools the allowlist removed.
 //
 // This list is belt-and-braces, not the guarantee — see the package comment.
+// It has already needed an entry it could not have predicted: 0.24.2 added
+// `tool_call`, which registered straight through the allowlist and the rest of
+// this list, and the startup check caught it. Expect to add to this list, and
+// do not treat it as the thing keeping the CLI contained.
 var deniedTools = []string{
 	// Categories, which cover the built-ins and their shell equivalents.
 	"Bash", "Read", "Edit", "WebFetch",
@@ -79,6 +83,8 @@ var deniedTools = []string{
 	"tool_search", "agent", "list_agents", "skill", "send_message",
 	"get_goal", "update_goal", "task_stop", "report_findings",
 	"enter_worktree", "exit_worktree", "record_artifact", "read_mcp_resource",
+	// Added in 0.24.2.
+	"tool_call",
 }
 
 // settings is the per-request `.qwen/settings.json` written into the scratch

@@ -78,7 +78,10 @@ changelog:
   format: "{{ .SHA }}: {{ .Message }}"
   filters:
     exclude:
-      - "^docs:"
+      # `test:` and `chore:` are housekeeping. `docs:` is deliberately not on
+      # this list: in this repo those commits record which CLI versions the
+      # fixtures were verified against, which is the first thing someone reads
+      # a release note to find out.
       - "^test:"
       - "^chore:"
 
