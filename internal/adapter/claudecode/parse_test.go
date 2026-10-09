@@ -12,11 +12,17 @@ import (
 // replay feeds lines through a parser and returns everything it emitted.
 func replay(t *testing.T, lines []string, runErr error) []ir.Event {
 	t.Helper()
+	return replayMode(t, lines, runErr, false)
+}
+
+// replayMode is replay with the parser's schema mode chosen explicitly.
+func replayMode(t *testing.T, lines []string, runErr error, schema bool) []ir.Event {
+	t.Helper()
 	var got []ir.Event
 	p := newParser(func(e ir.Event) bool {
 		got = append(got, e)
 		return true
-	})
+	}, schema)
 	for _, line := range lines {
 		if strings.TrimSpace(line) == "" {
 			continue
@@ -67,7 +73,7 @@ func collect(events []ir.Event) (text, thinking string, done *ir.Event, failure 
 }
 
 // TestGoldenTranscript replays a recording of real `claude --output-format
-// stream-json` output (Claude Code 2.1.231; see testdata/PROVENANCE.md). If a
+// stream-json` output (Claude Code 2.1.295; see testdata/PROVENANCE.md). If a
 // CLI upgrade changes the event shapes, this fails loudly instead of quietly
 // returning empty responses.
 func TestGoldenTranscript(t *testing.T) {
@@ -80,6 +86,8 @@ func TestGoldenTranscript(t *testing.T) {
 	if want := "Hello from the fixture."; text != want {
 		t.Errorf("text = %q, want %q", text, want)
 	}
+	// Recorded with `--thinking-display summarized`. Without it the CLI sends
+	// the same thinking block with its text empty, and this is what notices.
 	if thinking == "" {
 		t.Error("expected thinking deltas to be surfaced")
 	}
@@ -89,7 +97,7 @@ func TestGoldenTranscript(t *testing.T) {
 	if done.StopReason != ir.StopEndTurn {
 		t.Errorf("stop reason = %q, want end_turn", done.StopReason)
 	}
-	if done.Model != "claude-haiku-4-5-20251001" {
+	if done.Model != "claude-opus-5-5" {
 		t.Errorf("model = %q", done.Model)
 	}
 	if done.Usage == nil || done.Usage.OutputTokens == 0 {
@@ -122,6 +130,59 @@ func TestResultFallback(t *testing.T) {
 	if done == nil || done.Usage == nil || done.Usage.OutputTokens != 7 {
 		t.Errorf("usage not carried over from the result line: %+v", done)
 	}
+}
+
+// TestSchemaAnswerComesFromTheResultLine pins schema mode against the two ways
+// a streamed answer goes wrong there, both seen on 2.1.295 with Opus 5.5: prose
+// written ahead of the StructuredOutput call, and a call the CLI rejected
+// against the schema (`minimum: 1000`) followed by a retry. Streaming either
+// text_delta or input_json_delta would have answered
+// `The value 5 was rejected…{"n": 5}{"n": 1234}`. Constructed from that run,
+// trimmed to the lines the parser reads.
+func TestSchemaAnswerComesFromTheResultLine(t *testing.T) {
+	lines := []string{
+		`{"type":"system","subtype":"init","model":"claude-opus-5-5","tools":[]}`,
+		`{"type":"stream_event","event":{"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"toolu_1","name":"StructuredOutput","input":{}}}}`,
+		`{"type":"stream_event","event":{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\"n\": 5"}}}`,
+		`{"type":"stream_event","event":{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"}"}}}`,
+		`{"type":"stream_event","event":{"type":"message_delta","delta":{"stop_reason":"tool_use"}}}`,
+		`{"type":"stream_event","event":{"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}}`,
+		`{"type":"stream_event","event":{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"The value 5 was rejected, so I'm using 1234."}}}`,
+		`{"type":"stream_event","event":{"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"toolu_2","name":"StructuredOutput","input":{}}}}`,
+		`{"type":"stream_event","event":{"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"{\"n\": 1234}"}}}`,
+		`{"type":"stream_event","event":{"type":"message_delta","delta":{"stop_reason":"tool_use"}}}`,
+		`{"type":"result","subtype":"success","is_error":false,"result":"{\"n\":1234}","stop_reason":"tool_use","usage":{"input_tokens":4,"output_tokens":188}}`,
+	}
+	events := replayMode(t, lines, nil, true)
+	text, _, done, failure := collect(events)
+	if failure != nil {
+		t.Fatalf("unexpected error: %v", failure)
+	}
+	if text != `{"n":1234}` {
+		t.Errorf("text = %q, want only the validated answer", text)
+	}
+	if n := countText(events); n != 1 {
+		t.Errorf("answer arrived in %d text events, want 1: nothing streamed is the answer", n)
+	}
+	if done == nil || done.StopReason != ir.StopEndTurn {
+		t.Errorf("a finished structured answer must read as end_turn, got %+v", done)
+	}
+
+	// The same lines outside schema mode keep streaming text as they arrive.
+	text, _, _, _ = collect(replay(t, lines, nil))
+	if !strings.HasPrefix(text, "The value 5") {
+		t.Errorf("without a schema, text_delta is the answer; got %q", text)
+	}
+}
+
+func countText(events []ir.Event) int {
+	n := 0
+	for _, ev := range events {
+		if ev.Type == ir.EventTextDelta {
+			n++
+		}
+	}
+	return n
 }
 
 func TestUnknownLinesAreIgnored(t *testing.T) {
@@ -217,7 +278,7 @@ func TestRedactArgs(t *testing.T) {
 func TestRedactArgsHidesExtraArgValues(t *testing.T) {
 	a := &Adapter{}
 	a.opts.Config.ExtraArgs = []string{"--tuning", "sk-secret", "--token=sk-inline", "--harmless"}
-	args := append([]string{"--print", "--model", "haiku"}, a.opts.Config.ExtraArgs...)
+	args := append([]string{"--print", "--model", "opus"}, a.opts.Config.ExtraArgs...)
 
 	got := strings.Join(a.redactArgs(args), " ")
 	for _, secret := range []string{"sk-secret", "sk-inline"} {
@@ -225,7 +286,7 @@ func TestRedactArgsHidesExtraArgValues(t *testing.T) {
 			t.Errorf("%q reached the log: %s", secret, got)
 		}
 	}
-	for _, kept := range []string{"--tuning", "--token=<redacted>", "--harmless", "haiku"} {
+	for _, kept := range []string{"--tuning", "--token=<redacted>", "--harmless", "opus"} {
 		if !strings.Contains(got, kept) {
 			t.Errorf("%q should survive redaction: %s", kept, got)
 		}

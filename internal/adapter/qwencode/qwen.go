@@ -221,7 +221,7 @@ func (a *Adapter) Run(ctx context.Context, req ir.Request) (<-chan ir.Event, err
 		LogArgs: agentcli.RedactArgs(args, nil, agentcli.ExtraArgValues(a.opts.Config.ExtraArgs)...),
 		Cleanup: cleanup,
 	}, func(emit func(ir.Event) bool) agentcli.Parser {
-		return newParser(emit)
+		return newParser(emit, req.Variant)
 	}), nil
 }
 

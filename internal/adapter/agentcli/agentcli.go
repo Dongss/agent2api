@@ -63,6 +63,12 @@ type Probe struct {
 	VersionArgs []string
 	// Required lists flags the adapter cannot work without.
 	Required []string
+	// Undocumented finds flags the CLI accepts but leaves out of --help, which
+	// a --help scan cannot see. It runs once per successful probe, with a way
+	// to call the binary; the names it returns join the flag set, so
+	// [Caps.Has] answers for them like any other. A failed call should read as
+	// "absent", never fail the probe: the flag is optional by construction.
+	Undocumented func(ctx context.Context, run func(cliArgs ...string) (string, error)) []string
 	// NotFound is the message for a missing binary; it should say where to get
 	// the CLI. Missing renders the message for an install that lacks required
 	// flags.
@@ -100,6 +106,13 @@ func (p *Probe) Caps(ctx context.Context) (*Caps, error) {
 	}
 	if len(missing) > 0 {
 		return nil, &ir.Error{Code: ir.CodeUpstreamUnavailable, Message: p.Missing(missing)}
+	}
+	if p.Undocumented != nil {
+		for _, flag := range p.Undocumented(ctx, func(cliArgs ...string) (string, error) {
+			return p.capture(ctx, path, cliArgs)
+		}) {
+			flags[flag] = true
+		}
 	}
 
 	version, err := p.capture(ctx, path, args(p.VersionArgs, "--version"))

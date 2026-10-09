@@ -14,17 +14,26 @@ import (
 // replay feeds lines through a parser and returns everything it emitted.
 func replay(t *testing.T, lines []string, runErr error) []ir.Event {
 	t.Helper()
+	return replayVariant(t, lines, runErr, "")
+}
+
+// replayVariant is replay for a request that named a model. A line the parser
+// rejects ends the feed, as the runner does by killing the CLI, and its error
+// becomes the run's.
+func replayVariant(t *testing.T, lines []string, runErr error, variant string) []ir.Event {
+	t.Helper()
 	var got []ir.Event
 	p := newParser(func(e ir.Event) bool {
 		got = append(got, e)
 		return true
-	})
+	}, variant)
 	for _, line := range lines {
 		if strings.TrimSpace(line) == "" {
 			continue
 		}
 		if err := p.Line([]byte(line)); err != nil {
-			t.Fatalf("parser rejected a line: %v", err)
+			runErr = err
+			break
 		}
 	}
 	p.Finish(runErr)
@@ -126,9 +135,12 @@ func TestToolsAvailableFailsTheRun(t *testing.T) {
 		`{"type":"assistant","message":{"content":[{"type":"text","text":"an answer nobody should read"}]}}`,
 		`{"type":"result","subtype":"success","is_error":false,"result":"an answer nobody should read"}`,
 	}
-	_, _, done, failure := collect(replay(t, lines, nil))
+	text, _, done, failure := collect(replay(t, lines, nil))
 	if done != nil {
 		t.Error("a run that started with tools must not be reported as done")
+	}
+	if text != "" {
+		t.Errorf("text from a run that started with tools reached the caller: %q", text)
 	}
 	if failure == nil {
 		t.Fatal("expected an error event")
@@ -137,6 +149,48 @@ func TestToolsAvailableFailsTheRun(t *testing.T) {
 	// ones the deny list missed.
 	if !strings.Contains(failure.Detail, "run_shell_command") {
 		t.Errorf("the tools that leaked are not named: %+v", failure)
+	}
+}
+
+// TestUnknownModelIsNotSwappedForTheDefault replays what 0.25.0 did with
+// `--model no-such-model-xyz`: no refusal, an init line naming the configured
+// default, and an ordinary answer from it. Reported as a success, the caller
+// would read that answer as the model they asked for.
+func TestUnknownModelIsNotSwappedForTheDefault(t *testing.T) {
+	lines := []string{
+		`{"type":"system","subtype":"init","model":"qwen3-coder","tools":[]}`,
+		`{"type":"assistant","message":{"model":"qwen3-coder","content":[{"type":"text","text":"Hi! How can I help you today?"}]}}`,
+		`{"type":"result","subtype":"success","is_error":false,"result":"Hi! How can I help you today?"}`,
+	}
+	text, _, done, failure := collect(replayVariant(t, lines, nil, "no-such-model-xyz"))
+	if done != nil || failure == nil {
+		t.Fatalf("want an error, got done=%+v failure=%+v", done, failure)
+	}
+	if failure.Code != ir.CodeModelNotFound {
+		t.Errorf("code = %s, want %s", failure.Code, ir.CodeModelNotFound)
+	}
+	for _, name := range []string{"no-such-model-xyz", "qwen3-coder", "modelProviders"} {
+		if !strings.Contains(failure.Message, name) {
+			t.Errorf("the message should name %q: %s", name, failure.Message)
+		}
+	}
+	if text != "" {
+		t.Errorf("the substitute's answer reached the caller: %q", text)
+	}
+}
+
+// A model the CLI has is echoed back exactly, and the run goes through; with
+// no model named, whatever the CLI chose is the answer.
+func TestRequestedModelIsServed(t *testing.T) {
+	for _, variant := range []string{"qwen3.6-plus", ""} {
+		lines := []string{
+			`{"type":"system","subtype":"init","model":"qwen3.6-plus","tools":[]}`,
+			`{"type":"result","subtype":"success","is_error":false,"result":"ok"}`,
+		}
+		text, _, done, failure := collect(replayVariant(t, lines, nil, variant))
+		if failure != nil || done == nil || text != "ok" {
+			t.Errorf("variant %q: text=%q done=%+v failure=%+v", variant, text, done, failure)
+		}
 	}
 }
 
@@ -256,7 +310,7 @@ func TestUpstreamAPIErrorIsNotAnAnswer(t *testing.T) {
 		`{"type":"assistant","message":{"content":[{"type":"text","text":"[API Error: 400 Access denied, please make sure your account is in good standing.]"}]}}`,
 		`{"type":"result","subtype":"success","is_error":false,"result":"[API Error: 400 Access denied, please make sure your account is in good standing.]"}`,
 	}
-	_, _, done, failure := collect(replay(t, lines, nil))
+	text, _, done, failure := collect(replay(t, lines, nil))
 	if done != nil {
 		t.Error("an upstream failure must not be reported as a completed turn")
 	}
@@ -264,6 +318,33 @@ func TestUpstreamAPIErrorIsNotAnAnswer(t *testing.T) {
 		t.Fatal("expected an error event")
 	}
 	if !strings.Contains(failure.Detail, "Access denied") {
+		t.Errorf("the CLI's explanation was lost: %+v", failure)
+	}
+	if text != "" {
+		t.Errorf("the error reached the caller as answer text: %q", text)
+	}
+}
+
+// TestFlaggedAPIErrorIsNotStreamedFirst is the same failure as 0.25.0 reports
+// it, from a run against a provider entry holding a bad key: the result line
+// now says is_error, but the wrapper still arrives first as an assistant
+// message, and streamed it would have opened a 200 before the error was known.
+func TestFlaggedAPIErrorIsNotStreamedFirst(t *testing.T) {
+	const wrapper = "[API Error: 401 Incorrect API key provided.]"
+	lines := []string{
+		`{"type":"system","subtype":"init","model":"qwen3.6-plus","tools":[]}`,
+		`{"type":"assistant","message":{"content":[{"type":"text","text":"` + wrapper + `"}]}}`,
+		`{"type":"result","subtype":"error_during_execution","is_error":true,"error":{"message":"` + wrapper + `"},"usage":{"input_tokens":0,"output_tokens":0,"cache_read_input_tokens":0}}`,
+	}
+	events := replay(t, lines, nil)
+	text, _, done, failure := collect(events)
+	if text != "" || done != nil {
+		t.Errorf("want no answer, got text=%q done=%+v", text, done)
+	}
+	if failure == nil || failure.Code != ir.CodeUpstreamUnavailable {
+		t.Fatalf("a 401 should read as not authenticated, got %+v", failure)
+	}
+	if !strings.Contains(failure.Detail, "Incorrect API key") {
 		t.Errorf("the CLI's explanation was lost: %+v", failure)
 	}
 }
