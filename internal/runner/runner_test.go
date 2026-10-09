@@ -66,7 +66,7 @@ func TestNonZeroExitIsUpstreamError(t *testing.T) {
 }
 
 func TestMissingBinaryIsUnavailable(t *testing.T) {
-	_, _, err := collectLines(t, Spec{Binary: "definitely-not-a-real-binary-xyz", Env: Environ(nil, nil)})
+	_, _, err := collectLines(t, Spec{Binary: "definitely-not-a-real-binary-xyz", Env: Environ(nil, nil, nil)})
 	if err == nil {
 		t.Fatal("want an error for a missing binary")
 	}
@@ -247,7 +247,7 @@ func TestStderrTailIsBounded(t *testing.T) {
 func TestEnvironIsAnAllowlist(t *testing.T) {
 	t.Setenv("SOME_UNRELATED_SECRET", "leaked")
 	t.Setenv("ANTHROPIC_TEST_TOKEN", "vendor")
-	env := Environ([]string{"ANTHROPIC_"}, map[string]string{"EXTRA": "set"})
+	env := Environ([]string{"ANTHROPIC_"}, nil, map[string]string{"EXTRA": "set"})
 
 	joined := strings.Join(env, "\n")
 	if strings.Contains(joined, "SOME_UNRELATED_SECRET") {
@@ -261,6 +261,30 @@ func TestEnvironIsAnAllowlist(t *testing.T) {
 	}
 	if !strings.Contains(joined, "PATH=") {
 		t.Error("PATH is required for the CLI to run")
+	}
+}
+
+// A passthrough name is exact: it lets one variable through, not a family, and
+// a name the gateway does not have is left out rather than sent empty.
+func TestEnvironPassthroughNamesExactVariables(t *testing.T) {
+	t.Setenv("PROVIDER_API_KEY", "sk-provider")
+	t.Setenv("PROVIDER_API_KEY_OLD", "sk-stale")
+	t.Setenv("OVERRIDDEN", "from-env")
+	env := Environ(nil, []string{"PROVIDER_API_KEY", "NOT_SET_ANYWHERE_XYZ", "OVERRIDDEN"},
+		map[string]string{"OVERRIDDEN": "from-config"})
+
+	joined := "\n" + strings.Join(env, "\n") + "\n"
+	if !strings.Contains(joined, "\nPROVIDER_API_KEY=sk-provider\n") {
+		t.Error("a passthrough name should reach the CLI")
+	}
+	if strings.Contains(joined, "PROVIDER_API_KEY_OLD") {
+		t.Error("a passthrough name is not a prefix")
+	}
+	if strings.Contains(joined, "NOT_SET_ANYWHERE_XYZ") {
+		t.Error("an unset name must be skipped, not set empty")
+	}
+	if !strings.Contains(joined, "\nOVERRIDDEN=from-config\n") {
+		t.Error("an explicit value should win over an inherited one")
 	}
 }
 

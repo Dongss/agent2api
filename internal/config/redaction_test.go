@@ -52,6 +52,18 @@ adapters:
 	}
 }
 
+// env_passthrough holds names, and the names are what the report is for: they
+// say which variables the CLI was meant to get without saying what they hold.
+func TestReportShowsPassthroughNames(t *testing.T) {
+	_, prov, err := loadWith(t, "adapters:\n  codex:\n    env_passthrough: [PROVIDER_API_KEY]\n")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if report := prov.Report(); !strings.Contains(report, "PROVIDER_API_KEY") {
+		t.Errorf("the passthrough name should be visible:\n%s", report)
+	}
+}
+
 // An unset value is rendered plainly. "Not configured" is not a secret, and
 // hiding it would defeat the report's main use.
 func TestReportShowsUnsetFieldsPlainly(t *testing.T) {
@@ -108,6 +120,8 @@ func TestSecretKeyClassification(t *testing.T) {
 		// The empty map itself carries no value to leak.
 		"adapters.claude-code.env",
 		"adapters.claude-code.extra_args",
+		// Names only: the values stay in the environment, which is the point.
+		"adapters.codex.env_passthrough",
 	}
 	for _, key := range secret {
 		if !isSecretKey(key) {

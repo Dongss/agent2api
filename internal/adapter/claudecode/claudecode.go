@@ -99,7 +99,7 @@ func New(opts adapter.Options) (adapter.Adapter, error) {
 		log:  log,
 		probe: &agentcli.Probe{
 			Binary:       opts.Config.Binary,
-			Env:          runner.Environ(envAllowPrefixes, opts.Config.Env),
+			Env:          runner.Environ(envAllowPrefixes, opts.Config.EnvPassthrough, opts.Config.Env),
 			Required:     requiredFlags,
 			Undocumented: undocumentedFlags,
 			NotFound: fmt.Sprintf("the Claude Code CLI (%s) was not found on PATH; install it from https://claude.com/claude-code",
@@ -160,6 +160,7 @@ func (a *Adapter) Probe(ctx context.Context) (adapter.Health, error) {
 			health.Notes = append(health.Notes, "installed CLI has no "+flag+"; running without it")
 		}
 	}
+	health.Notes = append(health.Notes, agentcli.UnsetPassthrough(ID, a.opts.Config.EnvPassthrough)...)
 	if !caps.Has("--append-system-prompt") {
 		health.Notes = append(health.Notes, "installed CLI has no --append-system-prompt; system prompts are folded into the transcript")
 	}
@@ -203,7 +204,7 @@ func (a *Adapter) Run(ctx context.Context, req ir.Request) (<-chan ir.Event, err
 			Binary:         caps.Path,
 			Args:           args,
 			Dir:            dir,
-			Env:            runner.Environ(envAllowPrefixes, a.opts.Config.Env),
+			Env:            runner.Environ(envAllowPrefixes, a.opts.Config.EnvPassthrough, a.opts.Config.Env),
 			Stdin:          stdin,
 			RequestTimeout: a.opts.RequestTimeout,
 			IdleTimeout:    a.opts.IdleTimeout,

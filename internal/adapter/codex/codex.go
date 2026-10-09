@@ -67,7 +67,7 @@ func New(opts adapter.Options) (adapter.Adapter, error) {
 		log:  log,
 		probe: &agentcli.Probe{
 			Binary: opts.Config.Binary,
-			Env:    runner.Environ(envAllowPrefixes, opts.Config.Env),
+			Env:    runner.Environ(envAllowPrefixes, opts.Config.EnvPassthrough, opts.Config.Env),
 			// The flags that matter live under `codex exec`, not at top level.
 			HelpArgs: []string{"exec", "--help"},
 			Required: requiredFlags,
@@ -119,6 +119,7 @@ func (a *Adapter) Probe(ctx context.Context) (adapter.Health, error) {
 		}
 	}
 	health.Notes = append(health.Notes, a.sandboxNote(caps)...)
+	health.Notes = append(health.Notes, agentcli.UnsetPassthrough(ID, a.opts.Config.EnvPassthrough)...)
 
 	account, loggedIn, err := a.loginStatus(ctx)
 	switch {
@@ -178,7 +179,7 @@ func (a *Adapter) Run(ctx context.Context, req ir.Request) (<-chan ir.Event, err
 			Binary:         caps.Path,
 			Args:           args,
 			Dir:            dir,
-			Env:            runner.Environ(envAllowPrefixes, a.opts.Config.Env),
+			Env:            runner.Environ(envAllowPrefixes, a.opts.Config.EnvPassthrough, a.opts.Config.Env),
 			Stdin:          stdin,
 			RequestTimeout: a.opts.RequestTimeout,
 			IdleTimeout:    a.opts.IdleTimeout,

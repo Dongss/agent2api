@@ -45,7 +45,7 @@ func helperProbe(t *testing.T) *Probe {
 	}
 	return &Probe{
 		Binary: exe,
-		Env:    runner.Environ(nil, map[string]string{helperEnv: "1"}),
+		Env:    runner.Environ(nil, nil, map[string]string{helperEnv: "1"}),
 	}
 }
 

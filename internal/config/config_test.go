@@ -156,6 +156,41 @@ func TestUnknownAdapterIsAnError(t *testing.T) {
 	}
 }
 
+func TestEnvPassthroughLoads(t *testing.T) {
+	cfg, _, err := loadWith(t, "adapters:\n  codex:\n    env_passthrough: [PROVIDER_API_KEY]\n")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if got := cfg.Adapters["codex"].EnvPassthrough; len(got) != 1 || got[0] != "PROVIDER_API_KEY" {
+		t.Errorf("env_passthrough = %q", got)
+	}
+}
+
+func TestEnvPassthroughIsValidated(t *testing.T) {
+	cases := map[string]struct{ body, want string }{
+		"not a name": {
+			"adapters:\n  codex:\n    env_passthrough: [\"PROVIDER-API-KEY\"]\n",
+			`adapters.codex.env_passthrough: "PROVIDER-API-KEY" is not an environment variable name`,
+		},
+		"a value, not a name": {
+			"adapters:\n  codex:\n    env_passthrough: [\"PROVIDER_API_KEY=sk-x\"]\n",
+			"is not an environment variable name",
+		},
+		"in both lists": {
+			"adapters:\n  qwen-code:\n    env:\n      PROVIDER_API_KEY: sk-x\n    env_passthrough: [PROVIDER_API_KEY]\n",
+			"adapters.qwen-code: PROVIDER_API_KEY is in both env and env_passthrough",
+		},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			_, _, err := loadWith(t, c.body)
+			if err == nil || !strings.Contains(err.Error(), c.want) {
+				t.Fatalf("want an error containing %q, got %v", c.want, err)
+			}
+		})
+	}
+}
+
 func TestMissingExplicitConfigIsAnError(t *testing.T) {
 	isolate(t)
 	if _, _, err := Load(newFlags(t, "--config", "/nonexistent/agent2api.yaml")); err == nil {
