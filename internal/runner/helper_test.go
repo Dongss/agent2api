@@ -163,7 +163,7 @@ func helper(t *testing.T, args ...string) Spec {
 		Args:   args,
 		// The allowlist would drop the marker that puts the binary in helper
 		// mode, so it goes through as an explicit extra.
-		Env:            Environ(nil, map[string]string{helperEnv: "1"}),
+		Env:            Environ(nil, nil, map[string]string{helperEnv: "1"}),
 		RequestTimeout: 30 * time.Second,
 	}
 }

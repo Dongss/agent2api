@@ -41,13 +41,19 @@ adapters:
     # a plain LLM; `append` keeps the CLI's own agent preamble and adds to it.
     system_prompt_mode: replace   # replace | append
     extra_args: []          # appended verbatim to argv, for flag drift
-    env: {}                 # extra env vars; nothing else is inherited
+    # The CLI sees only a small base environment plus its own vendor variables
+    # (ANTHROPIC_*, CLAUDE_*, …). Two ways to give it more:
+    env: {}                 # NAME: value, set here in the file
+    env_passthrough: []     # [NAME, …], inherited from agent2api's environment
+                            # — the way to hand over a key, e.g. a codex
+                            # model_providers env_key, without writing it here
 
   codex:
     binary: codex
     sandbox: read-only      # read-only | workspace-write | danger-full-access
     extra_args: []
     env: {}
+    env_passthrough: []
 
   cursor:
     binary: cursor-agent
@@ -56,7 +62,9 @@ adapters:
     mode: ask               # ask | plan
     extra_args: []
     env: {}
+    env_passthrough: []
   qwen-code:
     binary: qwen
     extra_args: []
     env: {}
+    env_passthrough: []

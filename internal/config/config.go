@@ -149,6 +149,11 @@ type Adapter struct {
 	Binary    string            `koanf:"binary"`
 	ExtraArgs []string          `koanf:"extra_args"`
 	Env       map[string]string `koanf:"env"`
+	// EnvPassthrough names variables the CLI inherits from the gateway's own
+	// environment, beyond the vendor prefixes each adapter already lets
+	// through. Env sets a value in the config file; this names one that stays
+	// out of it, which is what a credential wants.
+	EnvPassthrough []string `koanf:"env_passthrough"`
 	// Sandbox is codex-specific and ignored by other adapters.
 	Sandbox string `koanf:"sandbox"`
 	// Mode is cursor-specific and ignored by other adapters: it picks the
@@ -475,6 +480,16 @@ func (c *Config) Validate() error {
 			errs = append(errs, fmt.Errorf("adapters.%s.mode: must be one of %s, got %q",
 				id, strings.Join(CursorModes, ", "), a.Mode))
 		}
+		for _, name := range a.EnvPassthrough {
+			if !validEnvName(name) {
+				errs = append(errs, fmt.Errorf("adapters.%s.env_passthrough: %q is not an environment variable name", id, name))
+				continue
+			}
+			if _, set := a.Env[name]; set {
+				errs = append(errs, fmt.Errorf("adapters.%s: %s is in both env and env_passthrough; keep it in one, so which value the CLI gets is not a question",
+					id, name))
+			}
+		}
 		switch a.SystemPromptMode {
 		case "", SystemPromptAppend, SystemPromptReplace:
 		default:
@@ -618,6 +633,24 @@ func flatten(m map[string]any) map[string]any {
 }
 
 func known(id string) bool { return contains(KnownAdapters, id) }
+
+// validEnvName accepts what a shell can export: a letter or underscore, then
+// letters, digits and underscores. Anything else could not have been set in
+// the gateway's environment to begin with, so it is a typo worth naming.
+func validEnvName(name string) bool {
+	if name == "" {
+		return false
+	}
+	for i, r := range name {
+		switch {
+		case r == '_', r >= 'A' && r <= 'Z', r >= 'a' && r <= 'z':
+		case r >= '0' && r <= '9' && i > 0:
+		default:
+			return false
+		}
+	}
+	return true
+}
 
 func contains(list []string, s string) bool {
 	for _, v := range list {

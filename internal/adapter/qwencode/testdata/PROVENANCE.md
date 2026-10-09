@@ -1,7 +1,7 @@
 # Where this fixture comes from
 
 `simple.jsonl` is a recording of a real `qwen` run, verified against Qwen Code
-`0.24.2`, captured with the argv the adapter itself builds:
+`0.25.0`, captured with the argv the adapter itself builds:
 
 ```sh
 qwen --output-format stream-json
@@ -84,8 +84,9 @@ rather than exactly, so those survive a re-record.
 
 ## History
 
-Recorded on 0.22.3, re-checked on 0.23.2, 0.24.0 and 0.24.2: no event type,
-`result` key or `usage` key has changed across any of them. No re-check produced
+Recorded on 0.22.3, re-checked on 0.23.2, 0.24.0, 0.24.2 and 0.25.0: no event
+type, `result` key or `usage` key of a successful run has changed across any of
+them, and 0.25.0 still starts with `tools: []` under the generated settings. No re-check produced
 a reasoning block, which is ordinary variation rather than a change; the
 recording keeps one.
 
@@ -106,3 +107,20 @@ The lesson is about which line holds. The deny list could not have anticipated
 this entry and will not anticipate the next one; the assertion on the CLI's own
 reported tool list needed no foresight. Keep new releases going through it
 rather than through a longer deny list.
+
+0.25.0 changed two behaviours without changing a successful run's shape.
+
+**An unknown `--model` is no longer an error you can see.** Asked for a model
+with no provider entry — a typo, a different case, the display name from
+`settings.json` — the CLI starts on its configured default and answers with
+it; only `system`/`init` says which model that was. A valid id comes back
+there exactly as given. The gateway used to return that answer as a 200
+labelled with the model the caller asked for; `parser.system` now compares the
+two and fails the run as `model_not_found`, before any text is sent.
+
+**An upstream API failure is flagged.** A 401 from the provider came back as
+`is_error: true`, subtype `error_during_execution`, with the wrapper in
+`error.message` — the machine-readable signal 0.24.2 lacked. The wrapper still
+arrives first as an `assistant` message, though, so the text match stays: it
+now also keeps that message from being streamed as the opening of an answer.
+See `TestFlaggedAPIErrorIsNotStreamedFirst`.

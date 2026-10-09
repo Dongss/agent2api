@@ -139,7 +139,7 @@ func New(opts adapter.Options) (adapter.Adapter, error) {
 		log:  log,
 		probe: &agentcli.Probe{
 			Binary:   opts.Config.Binary,
-			Env:      runner.Environ(envAllowPrefixes, opts.Config.Env),
+			Env:      runner.Environ(envAllowPrefixes, opts.Config.EnvPassthrough, opts.Config.Env),
 			Required: requiredFlags,
 			NotFound: fmt.Sprintf("the Qwen Code CLI (%s) was not found on PATH; install it from https://github.com/QwenLM/qwen-code",
 				opts.Config.Binary),
@@ -174,7 +174,11 @@ func (a *Adapter) Probe(ctx context.Context) (adapter.Health, error) {
 	if err != nil {
 		return adapter.Health{}, err
 	}
-	return adapter.Health{Binary: caps.Path, Version: caps.Version}, nil
+	return adapter.Health{
+		Binary:  caps.Path,
+		Version: caps.Version,
+		Notes:   agentcli.UnsetPassthrough(ID, a.opts.Config.EnvPassthrough),
+	}, nil
 }
 
 // Run executes one request as a fresh CLI process.
@@ -210,7 +214,7 @@ func (a *Adapter) Run(ctx context.Context, req ir.Request) (<-chan ir.Event, err
 			// The CLI takes no working-directory flag; it uses the process's,
 			// which is also where it looks for the settings written above.
 			Dir:            dir,
-			Env:            runner.Environ(envAllowPrefixes, a.opts.Config.Env),
+			Env:            runner.Environ(envAllowPrefixes, a.opts.Config.EnvPassthrough, a.opts.Config.Env),
 			Stdin:          stdin,
 			RequestTimeout: a.opts.RequestTimeout,
 			IdleTimeout:    a.opts.IdleTimeout,
@@ -221,7 +225,7 @@ func (a *Adapter) Run(ctx context.Context, req ir.Request) (<-chan ir.Event, err
 		LogArgs: agentcli.RedactArgs(args, nil, agentcli.ExtraArgValues(a.opts.Config.ExtraArgs)...),
 		Cleanup: cleanup,
 	}, func(emit func(ir.Event) bool) agentcli.Parser {
-		return newParser(emit)
+		return newParser(emit, req.Variant)
 	}), nil
 }
 

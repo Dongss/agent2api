@@ -1,6 +1,9 @@
 package agentcli
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestParseFlagNames(t *testing.T) {
 	help := `Options:
@@ -100,5 +103,18 @@ func TestFirstLine(t *testing.T) {
 	}
 	if got := FirstLine(""); got != "" {
 		t.Errorf("FirstLine of empty = %q", got)
+	}
+}
+
+func TestUnsetPassthroughNamesWhatIsMissing(t *testing.T) {
+	t.Setenv("AGENTCLI_TEST_SET", "x")
+	notes := UnsetPassthrough("codex", []string{"AGENTCLI_TEST_SET", "AGENTCLI_TEST_UNSET_XYZ"})
+	if len(notes) != 1 {
+		t.Fatalf("want one note, for the unset name; got %q", notes)
+	}
+	for _, want := range []string{"adapters.codex.env_passthrough", "AGENTCLI_TEST_UNSET_XYZ"} {
+		if !strings.Contains(notes[0], want) {
+			t.Errorf("the note should name %q: %s", want, notes[0])
+		}
 	}
 }

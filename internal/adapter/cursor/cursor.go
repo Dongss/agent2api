@@ -69,7 +69,7 @@ func New(opts adapter.Options) (adapter.Adapter, error) {
 		log:  log,
 		probe: &agentcli.Probe{
 			Binary:   opts.Config.Binary,
-			Env:      runner.Environ(envAllowPrefixes, opts.Config.Env),
+			Env:      runner.Environ(envAllowPrefixes, opts.Config.EnvPassthrough, opts.Config.Env),
 			Required: requiredFlags,
 			NotFound: fmt.Sprintf("the Cursor Agent CLI (%s) was not found on PATH; install it from https://cursor.com/cli",
 				opts.Config.Binary),
@@ -99,6 +99,7 @@ func (a *Adapter) Probe(ctx context.Context) (adapter.Health, error) {
 			"installed CLI has no --mode; it will answer in its own default (writable) mode rather than the read-only "+
 				a.mode()+" mode")
 	}
+	health.Notes = append(health.Notes, agentcli.UnsetPassthrough(ID, a.opts.Config.EnvPassthrough)...)
 	if !caps.Has("--stream-partial-output") {
 		health.Notes = append(health.Notes,
 			"installed CLI has no --stream-partial-output; streamed answers arrive in chunks rather than token by token")
@@ -152,7 +153,7 @@ func (a *Adapter) Run(ctx context.Context, req ir.Request) (<-chan ir.Event, err
 			Binary:         caps.Path,
 			Args:           args,
 			Dir:            dir,
-			Env:            runner.Environ(envAllowPrefixes, a.opts.Config.Env),
+			Env:            runner.Environ(envAllowPrefixes, a.opts.Config.EnvPassthrough, a.opts.Config.Env),
 			RequestTimeout: a.opts.RequestTimeout,
 			IdleTimeout:    a.opts.IdleTimeout,
 		},

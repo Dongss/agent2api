@@ -25,12 +25,20 @@ var baseAllowlist = []string{
 
 // Environ builds the child environment: the base allowlist, plus any variable
 // matching one of allowPrefixes (adapters use this to let their own vendor
-// variables through, e.g. "ANTHROPIC_"), plus explicit overrides from extra.
+// variables through, e.g. "ANTHROPIC_"), plus the variables named in
+// passthrough, plus explicit overrides from extra.
+//
+// passthrough is for what a prefix cannot anticipate: a CLI configured to read
+// its key from a variable of the user's choosing, such as a codex
+// model_providers entry with env_key = "PROVIDER_API_KEY". Naming it exactly
+// keeps the rest of the gateway's environment out, and keeps the key itself out
+// of the config file. A name that is not set is skipped, not set empty: the
+// CLI's own "missing variable" message is clearer than an empty credential.
 //
 // The result is sorted, so argv/env is reproducible across runs.
-func Environ(allowPrefixes []string, extra map[string]string) []string {
-	env := make(map[string]string, len(baseAllowlist)+len(extra))
-	for _, k := range baseAllowlist {
+func Environ(allowPrefixes, passthrough []string, extra map[string]string) []string {
+	env := make(map[string]string, len(baseAllowlist)+len(passthrough)+len(extra))
+	for _, k := range append(baseAllowlist[:len(baseAllowlist):len(baseAllowlist)], passthrough...) {
 		if v, ok := os.LookupEnv(k); ok {
 			env[k] = v
 		}

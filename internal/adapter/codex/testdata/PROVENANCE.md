@@ -1,7 +1,7 @@
 # Where these fixtures come from
 
 All three files are recordings of real `codex exec --json` runs, verified
-against codex-cli `0.155.1`, captured with the argv the adapter itself builds:
+against codex-cli `0.161.0`, captured with the argv the adapter itself builds:
 
 ```sh
 codex exec --json --sandbox read-only --skip-git-repo-check --cd <scratch> \
@@ -93,7 +93,7 @@ than in full — a 632-byte paragraph inline would bury what the test is for.
 ## History
 
 Recorded on 0.149.1, replacing files from 0.148.0; re-checked on 0.150.1,
-0.151.0, 0.154.0 and 0.155.1. No shape has changed across any of them.
+0.151.0, 0.154.0, 0.155.1 and 0.161.0. No shape has changed across any of them.
 
 Two things about that list are worth keeping.
 
@@ -114,3 +114,14 @@ One difference in the 0.154.0 run is not a shape change. It carried a single
 recording machine's `config.toml` no longer sets the deprecated
 `[features].codex_hooks`. The recording keeps both, since a startup warning that
 must not fail the turn is what `TestWarningItemsAreNotFatal` covers.
+
+0.161.0 was checked on both paths. A successful run through the third-party
+provider matched `reasoning.jsonl` key for key, `usage` included. No provider
+on the recording machine was out of quota this time, so the failure path was
+observed through a different failure — the OpenAI provider refusing a model
+name with a 404 — which produced the same lines `quota-exceeded.jsonl` pins:
+top-level `error` per retry, an `item.completed`/`error`, and `turn.failed`
+with no `turn.completed`. Its startup warning now reads `Codex is ignoring 2
+unrecognized configuration settings`, naming two `model_providers.*` keys in
+the recording machine's `config.toml`; a different sentence in the same
+`item.completed`/`error` shape.

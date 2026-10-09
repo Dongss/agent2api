@@ -12,6 +12,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 	"os/exec"
 	"strings"
 	"sync"
@@ -63,6 +64,12 @@ type Probe struct {
 	VersionArgs []string
 	// Required lists flags the adapter cannot work without.
 	Required []string
+	// Undocumented finds flags the CLI accepts but leaves out of --help, which
+	// a --help scan cannot see. It runs once per successful probe, with a way
+	// to call the binary; the names it returns join the flag set, so
+	// [Caps.Has] answers for them like any other. A failed call should read as
+	// "absent", never fail the probe: the flag is optional by construction.
+	Undocumented func(ctx context.Context, run func(cliArgs ...string) (string, error)) []string
 	// NotFound is the message for a missing binary; it should say where to get
 	// the CLI. Missing renders the message for an install that lacks required
 	// flags.
@@ -100,6 +107,13 @@ func (p *Probe) Caps(ctx context.Context) (*Caps, error) {
 	}
 	if len(missing) > 0 {
 		return nil, &ir.Error{Code: ir.CodeUpstreamUnavailable, Message: p.Missing(missing)}
+	}
+	if p.Undocumented != nil {
+		for _, flag := range p.Undocumented(ctx, func(cliArgs ...string) (string, error) {
+			return p.capture(ctx, path, cliArgs)
+		}) {
+			flags[flag] = true
+		}
 	}
 
 	version, err := p.capture(ctx, path, args(p.VersionArgs, "--version"))
@@ -206,6 +220,24 @@ func ExtraArgValues(extra []string) []string {
 		}
 	}
 	return out
+}
+
+// UnsetPassthrough returns a health note for each adapters.<id>.env_passthrough
+// name the gateway's own environment does not set. Such a name is skipped, so
+// the CLI would fail its first request on a missing credential; `doctor` can
+// say so before that, and say where the fix goes. A variable exported from a
+// shell profile reaches only processes started from a shell that read it — a
+// service manager or a launch agent starts agent2api without it.
+func UnsetPassthrough(id string, names []string) []string {
+	var notes []string
+	for _, name := range names {
+		if _, ok := os.LookupEnv(name); !ok {
+			notes = append(notes, fmt.Sprintf(
+				"adapters.%s.env_passthrough names %s, which is not set in agent2api's environment; export it where agent2api is started",
+				id, name))
+		}
+	}
+	return notes
 }
 
 // FirstLine is the first non-empty line of s, trimmed.

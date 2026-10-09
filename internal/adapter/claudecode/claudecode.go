@@ -48,6 +48,34 @@ var hardeningFlags = []string{
 	"--strict-mcp-config",
 }
 
+// thinkingDisplay is the `--thinking-display` value that carries the model's
+// reasoning as text. Somewhere between 2.1.278 and 2.1.283 the CLI's own
+// default in print mode became "updates": every thinking block still arrives,
+// with its text empty and only a token estimate beside it, so a caller asking
+// for reasoning got none and nothing said so. "summarized" is the API's own
+// summary of the thinking, which is what the CLI streamed before.
+const thinkingDisplay = "summarized"
+
+// undocumentedFlags finds `--thinking-display`, which the CLI accepts but
+// leaves out of --help. Asked for a value it does not take, an install that
+// has the flag refuses and lists the ones it does ("Allowed choices are
+// summarized, omitted, highlights"); one that does not ignores an unknown flag
+// and prints its version. `--version` keeps either from doing anything more,
+// so this costs what the --help probe costs.
+//
+// The flag only counts when the list includes the value the adapter passes:
+// a release that dropped "summarized" would otherwise fail every request.
+func undocumentedFlags(_ context.Context, run func(cliArgs ...string) (string, error)) []string {
+	out, err := run("--thinking-display", "__agent2api_probe__", "--version")
+	if err == nil {
+		return nil
+	}
+	if strings.Contains(ir.AsError(err).Detail+out, thinkingDisplay) {
+		return []string{"--thinking-display"}
+	}
+	return nil
+}
+
 // Adapter is the Claude Code backend.
 type Adapter struct {
 	opts  adapter.Options
@@ -70,9 +98,10 @@ func New(opts adapter.Options) (adapter.Adapter, error) {
 		opts: opts,
 		log:  log,
 		probe: &agentcli.Probe{
-			Binary:   opts.Config.Binary,
-			Env:      runner.Environ(envAllowPrefixes, opts.Config.Env),
-			Required: requiredFlags,
+			Binary:       opts.Config.Binary,
+			Env:          runner.Environ(envAllowPrefixes, opts.Config.EnvPassthrough, opts.Config.Env),
+			Required:     requiredFlags,
+			Undocumented: undocumentedFlags,
 			NotFound: fmt.Sprintf("the Claude Code CLI (%s) was not found on PATH; install it from https://claude.com/claude-code",
 				opts.Config.Binary),
 			Missing: func(missing []string) string {
@@ -131,6 +160,7 @@ func (a *Adapter) Probe(ctx context.Context) (adapter.Health, error) {
 			health.Notes = append(health.Notes, "installed CLI has no "+flag+"; running without it")
 		}
 	}
+	health.Notes = append(health.Notes, agentcli.UnsetPassthrough(ID, a.opts.Config.EnvPassthrough)...)
 	if !caps.Has("--append-system-prompt") {
 		health.Notes = append(health.Notes, "installed CLI has no --append-system-prompt; system prompts are folded into the transcript")
 	}
@@ -174,7 +204,7 @@ func (a *Adapter) Run(ctx context.Context, req ir.Request) (<-chan ir.Event, err
 			Binary:         caps.Path,
 			Args:           args,
 			Dir:            dir,
-			Env:            runner.Environ(envAllowPrefixes, a.opts.Config.Env),
+			Env:            runner.Environ(envAllowPrefixes, a.opts.Config.EnvPassthrough, a.opts.Config.Env),
 			Stdin:          stdin,
 			RequestTimeout: a.opts.RequestTimeout,
 			IdleTimeout:    a.opts.IdleTimeout,
@@ -183,7 +213,7 @@ func (a *Adapter) Run(ctx context.Context, req ir.Request) (<-chan ir.Event, err
 		LogArgs: a.redactArgs(args),
 		Cleanup: cleanup,
 	}, func(emit func(ir.Event) bool) agentcli.Parser {
-		return newParser(emit)
+		return newParser(emit, schemaMode(caps, req))
 	}), nil
 }
 
@@ -205,6 +235,9 @@ func (a *Adapter) buildArgs(caps *agentcli.Caps, req ir.Request, rendered prompt
 			args = append(args, flag)
 		}
 	}
+	if caps.Has("--thinking-display") {
+		args = append(args, "--thinking-display", thinkingDisplay)
+	}
 	if caps.Has("--setting-sources") {
 		// Load no user/project/local settings files.
 		args = append(args, "--setting-sources", "")
@@ -214,7 +247,7 @@ func (a *Adapter) buildArgs(caps *agentcli.Caps, req ir.Request, rendered prompt
 	}
 	// Only ever set once EnforcesSchema said yes, so a missing flag here would
 	// mean the caller was promised something the CLI cannot do.
-	if req.Schema != "" && caps.Has("--json-schema") {
+	if schemaMode(caps, req) {
 		args = append(args, "--json-schema", req.Schema)
 	}
 	// Only ever set once EffortLevels listed it, so the flag is known present.
@@ -227,6 +260,12 @@ func (a *Adapter) buildArgs(caps *agentcli.Caps, req ir.Request, rendered prompt
 
 	args = append(args, a.opts.Config.ExtraArgs...)
 	return args, stdin
+}
+
+// schemaMode reports whether the run carries `--json-schema`, which changes
+// where the parser finds the answer.
+func schemaMode(caps *agentcli.Caps, req ir.Request) bool {
+	return req.Schema != "" && caps.Has("--json-schema")
 }
 
 // redactArgs makes argv safe to log. The system prompt and the JSON schema are

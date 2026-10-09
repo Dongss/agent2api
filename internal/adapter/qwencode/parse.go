@@ -2,6 +2,7 @@ package qwencode
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/Dongss/agent2api/internal/ir"
@@ -59,6 +60,8 @@ func (u *usage) toIR() *ir.Usage {
 // parser converts stream-json lines into IR events. One parser handles one run.
 type parser struct {
 	emit func(ir.Event) bool
+	// variant is the model the caller asked for, empty for the CLI's default.
+	variant string
 
 	// sawText records whether any assistant text reached the client, which
 	// decides whether the terminal line's result is a duplicate or a fallback.
@@ -70,8 +73,8 @@ type parser struct {
 	done      bool
 }
 
-func newParser(emit func(ir.Event) bool) *parser {
-	return &parser{emit: emit}
+func newParser(emit func(ir.Event) bool, variant string) *parser {
+	return &parser{emit: emit, variant: variant}
 }
 
 // Line consumes one stdout line. A line that is not valid JSON is skipped
@@ -85,6 +88,11 @@ func (p *parser) Line(b []byte) error {
 	switch l.Type {
 	case "system":
 		p.system(l)
+		if p.err != nil {
+			// Stop the run here rather than let it spend tokens on an answer
+			// that will not be delivered.
+			return p.err
+		}
 	case "assistant":
 		p.assistant(l)
 	case "result":
@@ -93,7 +101,8 @@ func (p *parser) Line(b []byte) error {
 	return nil
 }
 
-// system reads the startup line, which is where the containment is checked.
+// system reads the startup line, which is where the model and the containment
+// are checked.
 //
 // The CLI reports the tools it is running with, and agent2api's settings leave
 // it none. Verifying that here rather than trusting the settings is the whole
@@ -107,6 +116,18 @@ func (p *parser) system(l streamLine) {
 	if l.Model != "" {
 		p.model = l.Model
 	}
+	// Asked for a model it has no provider entry for, the CLI does not refuse:
+	// 0.25.0 starts on its configured default and answers with that. A valid
+	// id comes back here exactly as given, and anything else — a typo, a
+	// different case, the display name — comes back as the default, so an
+	// exact comparison is the whole test.
+	if p.variant != "" && l.Model != "" && l.Model != p.variant {
+		p.err = &ir.Error{
+			Code: ir.CodeModelNotFound,
+			Message: fmt.Sprintf("the Qwen Code CLI has no model %q configured and would have answered with its default, %q, instead; "+
+				"ask for a model id listed under modelProviders in the CLI's settings.json", p.variant, l.Model),
+		}
+	}
 	if len(l.Tools) > 0 {
 		p.err = &ir.Error{
 			Code: ir.CodeUpstreamError,
@@ -118,13 +139,23 @@ func (p *parser) system(l streamLine) {
 }
 
 func (p *parser) assistant(l streamLine) {
-	if l.Message == nil {
+	if l.Message == nil || p.err != nil {
 		return
 	}
 	for _, c := range l.Message.Content {
 		switch c.Type {
 		case "text":
 			if c.Text == "" {
+				continue
+			}
+			// The CLI sends an upstream failure as an assistant message before
+			// the result line reports it. Streamed, it would reach the caller
+			// as the opening of an answer, under a 200 that has already gone
+			// out, and the real error would follow too late to set the status.
+			if msg, ok := apiErrorIn(c.Text); ok {
+				if p.err == nil {
+					p.err = classify(msg, "")
+				}
 				continue
 			}
 			p.sawText = true
@@ -168,7 +199,7 @@ func (p *parser) result(l streamLine) {
 //
 //	[API Error: 400 Access denied, please make sure your account is in good standing…]
 //
-// There is no machine-readable signal to read instead, and letting it through
+// 0.24.2 gave no machine-readable signal to read instead, and letting it through
 // would hand the caller a 200 whose body is an error dressed as a model
 // response — the failure this package exists to prevent, arriving by a
 // different door.
@@ -176,6 +207,11 @@ func (p *parser) result(l streamLine) {
 // So the text is matched, conservatively: only when the whole answer is that
 // bracketed wrapper. An answer that merely mentions an API error somewhere in
 // its prose is a real answer and passes through untouched.
+//
+// 0.25.0 does set the signal — a 401 came back as is_error true, subtype
+// error_during_execution, with the wrapper in error.message — but still sends
+// the wrapper as an assistant message first, so [parser.assistant] needs the
+// match either way.
 func apiErrorIn(result string) (string, bool) {
 	s := strings.TrimSpace(result)
 	const prefix = "[API Error:"

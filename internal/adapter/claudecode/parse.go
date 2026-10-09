@@ -37,12 +37,10 @@ type streamEvent struct {
 		Usage *usage `json:"usage"`
 	} `json:"message"`
 	Delta *struct {
-		Type     string `json:"type"`
-		Text     string `json:"text"`
-		Thinking string `json:"thinking"`
-		// PartialJSON carries the answer in schema mode; see [parser.streamEvent].
-		PartialJSON string `json:"partial_json"`
-		StopReason  string `json:"stop_reason"`
+		Type       string `json:"type"`
+		Text       string `json:"text"`
+		Thinking   string `json:"thinking"`
+		StopReason string `json:"stop_reason"`
 	} `json:"delta"`
 	Usage *usage `json:"usage"`
 }
@@ -75,6 +73,9 @@ func (u *usage) toIR() *ir.Usage {
 // parser converts stream-json lines into IR events. One parser handles one run.
 type parser struct {
 	emit func(ir.Event) bool
+	// schema is set when the run carries `--json-schema`; see
+	// [parser.streamEvent] for why that changes where the answer comes from.
+	schema bool
 
 	// sawText records whether any text delta reached the client, which decides
 	// whether the terminal line's full result is a duplicate or a fallback.
@@ -90,8 +91,8 @@ type parser struct {
 	done bool
 }
 
-func newParser(emit func(ir.Event) bool) *parser {
-	return &parser{emit: emit}
+func newParser(emit func(ir.Event) bool, schema bool) *parser {
+	return &parser{emit: emit, schema: schema}
 }
 
 // Line consumes one stdout line. A line that is not valid JSON is skipped
@@ -130,21 +131,20 @@ func (p *parser) streamEvent(ev *streamEvent) {
 		}
 		switch ev.Delta.Type {
 		case "text_delta":
-			if ev.Delta.Text == "" {
+			// Schema mode: `--json-schema` makes the CLI answer through an
+			// internal StructuredOutput tool, and nothing streamed is the
+			// answer. Models write prose ahead of the call (4 runs of 4 on
+			// 2.1.295), and a call the CLI rejects against the schema is
+			// retried, so both text_delta and the tool's input_json_delta can
+			// carry text that is not the answer — `{"n": 5}{"n": 1234}` for a
+			// first attempt refused by `minimum: 1000`. Only the result line
+			// holds the validated answer; [parser.Finish] sends it, in one
+			// piece.
+			if p.schema || ev.Delta.Text == "" {
 				return
 			}
 			p.sawText = true
 			p.emit(ir.TextEvent(ev.Delta.Text))
-		case "input_json_delta":
-			// Schema mode: `--json-schema` makes the CLI answer through an
-			// internal StructuredOutput tool, so the JSON arrives as the tool's
-			// input rather than as text_delta, and no text_delta is sent at
-			// all. To the caller it is still just the answer, streamed.
-			if ev.Delta.PartialJSON == "" {
-				return
-			}
-			p.sawText = true
-			p.emit(ir.TextEvent(ev.Delta.PartialJSON))
 		case "thinking_delta":
 			if ev.Delta.Thinking == "" {
 				return
@@ -219,8 +219,9 @@ func (p *parser) Finish(runErr error) {
 		}))
 		return
 	}
-	// Without token-level deltas (older CLIs, or a run that produced its answer
-	// in one shot) the terminal line is the only place the text appears.
+	// Without token-level deltas (older CLIs, a run that produced its answer in
+	// one shot, or schema mode, which streams nothing) the terminal line is the
+	// only place the text appears.
 	if !p.sawText && p.finalText != "" {
 		p.emit(ir.TextEvent(p.finalText))
 	}
