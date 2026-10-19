@@ -1,14 +1,24 @@
 # Where these fixtures come from
 
 All three files are recordings of real `codex exec --json` runs, verified
-against codex-cli `0.161.0`, captured with the argv the adapter itself builds:
+against codex-cli `0.163.0` with the argv the adapter itself builds:
 
 ```sh
 codex exec --json --sandbox read-only --skip-git-repo-check --cd <scratch> \
-           --ephemeral --ignore-rules --color never -
+           --ephemeral --ignore-rules --color never \
+           -c features.shell_tool=false -c features.unified_exec=false \
+           -c features.multi_agent=false -c features.goals=false \
+           -c features.view_image=false -c features.plugins=false \
+           -c features.apps=false -c features.computer_use=false \
+           -c features.sleep_tool=false -c 'web_search="disabled"' \
+           -c mcp_servers.<each enabled server>.enabled=false -
 ```
 
-The prompt goes on stdin, which is what the trailing `-` selects.
+The prompt goes on stdin, which is what the trailing `-` selects. The `-c`
+switches take the model's tools away; they arrived with the 0.163.0 re-check
+(see History), after the files were recorded, and that re-check ran with them.
+They change what the model is offered, not the shape of a run that uses no
+tool, so the recordings stand.
 
 - `simple.jsonl` — a turn with no reasoning item: one `agent_message` carrying
   the whole answer. This is the shape a plain completion takes.
@@ -80,6 +90,16 @@ which holds recordings only:
   `item.updated`: the fragment would win and the rest of the answer would be
   dropped, reported as a success. The test fails the day that changes.
 
+## Tools
+
+A run that uses a tool has no recording here either, on purpose. Making one
+means running the CLI with its tools on, and the output carries whatever the
+tool read off the recording machine. `TestToolItemStopsTheRun` replays the
+order 0.163.0 produced instead — an announcement, the call, then an answer
+built from its output — for each item type a run has shown
+(`command_execution`, `mcp_tool_call`, `collab_tool_call`, `web_search`), the
+two the CLI documents (`file_change`, `todo_list`), and one nobody has seen.
+
 ## Re-recording
 
 An account with quota is all it takes: run the argv above in an empty directory,
@@ -93,7 +113,8 @@ than in full — a 632-byte paragraph inline would bury what the test is for.
 ## History
 
 Recorded on 0.149.1, replacing files from 0.148.0; re-checked on 0.150.1,
-0.151.0, 0.154.0, 0.155.1 and 0.161.0. No shape has changed across any of them.
+0.151.0, 0.154.0, 0.155.1, 0.161.0 and 0.163.0. No shape has changed across
+any of them.
 
 Two things about that list are worth keeping.
 
@@ -125,3 +146,45 @@ with no `turn.completed`. Its startup warning now reads `Codex is ignoring 2
 unrecognized configuration settings`, naming two `model_providers.*` keys in
 the recording machine's `config.toml`; a different sentence in the same
 `item.completed`/`error` shape.
+
+0.163.0 is the one that showed the model had tools all along. The re-check
+used a prompt that invited working something out, and the model ran
+`python3 -c` to do it: `item.started`/`item.completed` for a
+`command_execution`, a type no recording here had shown. The read-only
+sandbox blocks writes and the network, not reads, so a follow-up asking for
+`ls -d "$HOME/.codex"` and the first line of `/etc/hosts` got both back.
+0.161.0, still on the machine, did the same, so this was not a regression: the
+earlier re-checks asked for a fixed line and never gave the model a reason to
+reach for a tool.
+
+The shell was the smallest part. Pointed at a stub provider, 0.163.0 sent a
+third-party model fourteen tools under the old argv: the shell, `view_image`,
+`request_user_input`, `spawn_agent` and four more agent tools, goals,
+`web_search`, the MCP resource readers, and `node_repl` and `cua_repl` — MCP
+servers from the recording machine's `config.toml` and a plugin. `node_repl`
+ships with codex and holds the code it runs to the sandbox (a write beyond the
+scratch directory came back `EPERM`), but a server the user adds does not: a
+stub stdio server configured the same way wrote a file there as it started.
+GPT-6 models get a different set in a different place (an `additional_tools`
+input item, with a code-mode `exec` wrapping the rest). Provoked through the
+third-party provider, `node_repl` produced an `mcp_tool_call`, `spawn_agent` a
+`collab_tool_call`, `web_search` a `web_search` item; `create_goal` produced
+no item at all.
+
+The fix is two layers, the same lesson as Qwen Code 0.24.2. The argv now
+switches off every feature that adds a tool (only those `codex features list`
+names: an unknown one fails the run), disables web search, and disables each
+MCP server `codex mcp list` reports enabled (`-c mcp_servers={}` merges rather
+than clears). That leaves a third-party model `request_user_input` alone. The
+guarantee is the parser: any item other than `agent_message`, `reasoning` or
+`error` fails the run and stops the CLI, with a 502 or a stream error and none
+of the tool's output. Both were checked end to end: the six provoking prompts
+came back as plain answers ("NO SHELL" and so on), and with the shell switched
+back on through `extra_args` the same request failed on `command_execution`
+with no text sent.
+
+The shapes themselves did not move. A successful run through the third-party
+provider matched `reasoning.jsonl` key for key, `usage` included, with the new
+argv. The failure path was observed as a quota failure again — one model's
+quota ran out during the re-check — and matched `quota-exceeded.jsonl`:
+top-level `error` per retry, `turn.failed`, no `turn.completed`.

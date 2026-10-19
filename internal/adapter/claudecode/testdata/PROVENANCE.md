@@ -118,6 +118,7 @@ Recorded on 2.1.295 (2026-10-09) with Opus 5.5, replacing a Haiku recording
 made on 2.1.231 (2026-08-25) and re-checked on 2.1.236, 2.1.267, 2.1.274 and
 2.1.278. Haiku was the cheapest model that thinks; the switch to Opus is a
 choice of which model the tests run against, not something the CLI forced.
+Re-checked on 2.1.303 (2026-10-19); see the end of this section.
 
 Somewhere between 2.1.278 and 2.1.283 the CLI's print-mode default for thinking
 became `thinking_display: "updates"`. Every thinking block still arrives, but
@@ -143,3 +144,15 @@ reads:
 Earlier: since 2.1.236 the CLI stopped emitting `system`/`thinking_tokens` at
 2.1.267, and its `result` line gained `first_content_frame_ms`,
 `queued_turn_count` and `subagent_stats` (2.1.267) and `result_index` (2.1.274).
+
+2.1.303 matched this recording event for event: the same kinds, counts and
+order, thinking block included, with text in its deltas. It still accepts
+`--thinking-display`, offering `summarized, omitted, highlights`. The first
+of three runs answered without thinking, which is the variation described
+under "What it pins", not a change. What is new is only fields, none of them
+read by the parser:
+
+- `usage.speed` on the `assistant` lines and in `message_start`'s message.
+- `thinking_display` on the `assistant` thinking line, as well as on the
+  `stream_event` lines that already carried it.
+- `system`/`init` gained `additional_directories` and `original_cwd`.

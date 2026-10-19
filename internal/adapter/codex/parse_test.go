@@ -9,7 +9,9 @@ import (
 	"github.com/Dongss/agent2api/internal/ir"
 )
 
-// replay feeds lines through a parser and returns everything it emitted.
+// replay feeds lines through a parser and returns everything it emitted. A
+// line the parser rejects ends the feed, as the runner does by killing the
+// CLI, and its error becomes the run's.
 func replay(t *testing.T, lines []string, runErr error) []ir.Event {
 	t.Helper()
 	var got []ir.Event
@@ -22,7 +24,8 @@ func replay(t *testing.T, lines []string, runErr error) []ir.Event {
 			continue
 		}
 		if err := p.Line([]byte(line)); err != nil {
-			t.Fatalf("parser rejected a line: %v", err)
+			runErr = err
+			break
 		}
 	}
 	p.Finish(runErr)
@@ -289,21 +292,45 @@ func TestRepeatedItemIsEmittedOnce(t *testing.T) {
 	}
 }
 
-// Tool-shaped items belong to an agent, not to an LLM API: agent2api runs the
-// CLI with nothing to use them on, and must not leak them into the answer.
-func TestToolItemsAreIgnored(t *testing.T) {
-	lines := []string{
-		`{"type":"item.completed","item":{"id":"item_0","type":"command_execution","command":"ls","aggregated_output":"file.txt"}}`,
-		`{"type":"item.completed","item":{"id":"item_1","type":"web_search","query":"weather"}}`,
-		`{"type":"item.completed","item":{"id":"item_2","type":"agent_message","text":"answer"}}`,
-		`{"type":"turn.completed","usage":{"input_tokens":1,"output_tokens":1}}`,
-	}
-	text, _, _, failure := collect(replay(t, lines, nil))
-	if failure != nil {
-		t.Fatal(failure)
-	}
-	if text != "answer" {
-		t.Errorf("text = %q, want only the assistant message", text)
+// TestToolItemStopsTheRun follows the order 0.163.0 produced when a prompt got
+// a model to use a tool despite the read-only sandbox: an announcement, the
+// call started and completed, then an answer built from what the tool
+// returned. The first four types are the ones those runs showed; file_change
+// and todo_list are types the CLI documents; the last is the next tool nobody
+// has seen yet, which is why this is an allowlist.
+//
+// Constructed rather than recorded: a recording would mean running the CLI
+// with its tools on, and the output carried files from the recording machine.
+func TestToolItemStopsTheRun(t *testing.T) {
+	for _, kind := range []string{"command_execution", "mcp_tool_call", "collab_tool_call", "web_search",
+		"file_change", "todo_list", "some_future_tool"} {
+		t.Run(kind, func(t *testing.T) {
+			lines := []string{
+				`{"type":"turn.started"}`,
+				`{"type":"item.completed","item":{"id":"item_0","type":"agent_message","text":"Running it now."}}`,
+				`{"type":"item.started","item":{"id":"item_1","type":"` + kind + `","command":"cat ~/.ssh/id_ed25519"}}`,
+				`{"type":"item.completed","item":{"id":"item_1","type":"` + kind + `","aggregated_output":"PRIVATE KEY"}}`,
+				`{"type":"item.completed","item":{"id":"item_2","type":"agent_message","text":"The file holds PRIVATE KEY"}}`,
+				`{"type":"turn.completed","usage":{"input_tokens":1,"output_tokens":1}}`,
+			}
+			text, _, done, failure := collect(replay(t, lines, nil))
+			if done != nil {
+				t.Error("a run that used a tool must not be reported as done")
+			}
+			if strings.Contains(text, "PRIVATE KEY") {
+				t.Errorf("the tool's output reached the caller: %q", text)
+			}
+			if failure == nil {
+				t.Fatal("expected an error event")
+			}
+			if !strings.Contains(failure.Detail, kind) {
+				t.Errorf("the error does not name the item type: %+v", failure)
+			}
+			// The command is model-written, often from the caller's words.
+			if strings.Contains(failure.Message+failure.Detail, "id_ed25519") {
+				t.Errorf("the error repeats the tool call: %+v", failure)
+			}
+		})
 	}
 }
 
