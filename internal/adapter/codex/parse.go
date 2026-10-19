@@ -32,9 +32,10 @@ type streamLine struct {
 }
 
 // item is one thread item. Its Type discriminates the payload: "agent_message"
-// and "reasoning" carry Text, "error" carries Message, and the tool-shaped
-// kinds (command_execution, file_change, mcp_tool_call, web_search, todo_list)
-// are ignored — agent2api runs the CLI with nothing to use them on.
+// and "reasoning" carry Text, "error" carries Message. Every other type is
+// something the agent did — command_execution, mcp_tool_call, collab_tool_call,
+// web_search, file_change, todo_list so far — and fails the run; see
+// parser.item.
 type item struct {
 	ID      string `json:"id"`
 	Type    string `json:"type"`
@@ -114,7 +115,10 @@ func (p *parser) Line(b []byte) error {
 
 	switch l.Type {
 	case "item.started", "item.updated", "item.completed":
-		p.item(l.Item)
+		if err := p.item(l.Item); err != nil {
+			// Stop the CLI before the tool's result can reach an answer.
+			return err
+		}
 	case "turn.started":
 		p.turn = true
 	case "turn.completed":
@@ -136,14 +140,23 @@ func (p *parser) Line(b []byte) error {
 	return nil
 }
 
-func (p *parser) item(it *item) {
+// item handles one thread item, and refuses one that is not a message, a
+// reasoning summary or a warning.
+//
+// The refusal is an allowlist on purpose. Unknown line types are ignored,
+// because a new kind of progress report must not break an answer; an unknown
+// item type is something the agent did, and the next tool codex adds will
+// arrive as one. It fires on item.started, the earliest sign of the call. The
+// model often says what it is about to do first, so a streamed answer may
+// already carry that sentence; the tool's output never follows it.
+func (p *parser) item(it *item) error {
 	if it == nil || p.seen[it.ID] {
-		return
+		return nil
 	}
 	switch it.Type {
 	case "agent_message":
 		if it.Text == "" {
-			return
+			return nil
 		}
 		p.seen[it.ID] = true
 		if p.sawText {
@@ -154,7 +167,7 @@ func (p *parser) item(it *item) {
 		p.emit(ir.TextEvent(it.Text))
 	case "reasoning":
 		if it.Text == "" {
-			return
+			return nil
 		}
 		p.seen[it.ID] = true
 		p.emit(ir.ThinkingEvent(it.Text))
@@ -162,7 +175,21 @@ func (p *parser) item(it *item) {
 		// A warning the CLI raised without failing the turn.
 		p.seen[it.ID] = true
 		p.note(it.Message)
+	case "":
+		// Nothing to act on, and nothing the agent did.
+	default:
+		// The command or query is left out of the detail: the model wrote it,
+		// often from the caller's own words.
+		p.err = &ir.Error{
+			Code: ir.CodeUpstreamError,
+			Message: "the Codex CLI started using a tool, which agent2api does not allow, and was stopped; " +
+				"if adapters.codex.extra_args turns a feature back on, remove that override, " +
+				"otherwise this build of the CLI needs its tool switches re-checked against internal/adapter/codex",
+			Detail: "item type: " + it.Type,
+		}
+		return p.err
 	}
+	return nil
 }
 
 func (p *parser) note(msg string) {
