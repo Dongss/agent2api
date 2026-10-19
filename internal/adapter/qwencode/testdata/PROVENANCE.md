@@ -1,7 +1,7 @@
 # Where this fixture comes from
 
 `simple.jsonl` is a recording of a real `qwen` run, verified against Qwen Code
-`0.25.0`, captured with the argv the adapter itself builds:
+`0.25.2`, captured with the argv the adapter itself builds:
 
 ```sh
 qwen --output-format stream-json
@@ -84,11 +84,11 @@ rather than exactly, so those survive a re-record.
 
 ## History
 
-Recorded on 0.22.3, re-checked on 0.23.2, 0.24.0, 0.24.2 and 0.25.0: no event
-type, `result` key or `usage` key of a successful run has changed across any of
-them, and 0.25.0 still starts with `tools: []` under the generated settings. No re-check produced
-a reasoning block, which is ordinary variation rather than a change; the
-recording keeps one.
+Recorded on 0.22.3, re-checked on 0.23.2, 0.24.0, 0.24.2, 0.25.0 and 0.25.2:
+no event type, `result` key or `usage` key of a successful run has changed
+across any of them, and 0.25.2 still starts with `tools: []` under the
+generated settings. No re-check produced a reasoning block, which is ordinary
+variation rather than a change; the recording keeps one.
 
 0.24.2 is the one that earned its keep. It ships a new built-in, `tool_call`,
 which the core-tool allowlist and the deny list both let through, so
@@ -124,3 +124,7 @@ two and fails the run as `model_not_found`, before any text is sent.
 arrives first as an `assistant` message, though, so the text match stays: it
 now also keeps that message from being streamed as the opening of an answer.
 See `TestFlaggedAPIErrorIsNotStreamedFirst`.
+
+0.25.2 still swaps an unknown `--model` for its default, and the gateway still
+refuses that run as `model_not_found` before any text; the upstream-error path
+was not exercised on this release.
