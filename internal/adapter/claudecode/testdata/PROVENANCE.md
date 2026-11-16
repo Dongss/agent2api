@@ -118,7 +118,8 @@ Recorded on 2.1.295 (2026-10-09) with Opus 5.5, replacing a Haiku recording
 made on 2.1.231 (2026-08-25) and re-checked on 2.1.236, 2.1.267, 2.1.274 and
 2.1.278. Haiku was the cheapest model that thinks; the switch to Opus is a
 choice of which model the tests run against, not something the CLI forced.
-Re-checked on 2.1.303 (2026-10-19); see the end of this section.
+Re-checked on 2.1.303 (2026-10-19) and 2.1.325 (2026-11-16); see the end of
+this section.
 
 Somewhere between 2.1.278 and 2.1.283 the CLI's print-mode default for thinking
 became `thinking_display: "updates"`. Every thinking block still arrives, but
@@ -156,3 +157,21 @@ read by the parser:
 - `thinking_display` on the `assistant` thinking line, as well as on the
   `stream_event` lines that already carried it.
 - `system`/`init` gained `additional_directories` and `original_cwd`.
+
+2.1.325 matched it event for event again, in two runs out of two: both
+thought, with text in their deltas, and answered `Hello from the fixture.` on
+`claude-opus-5-5`. They sent fewer `system`/`thinking_tokens` lines than the
+recording (one per thinking delta, as before, with fewer deltas), which is the
+model's thinking being shorter, not a shape. `tools` is still `[]`;
+`--thinking-display` still offers `summarized, omitted, highlights`, and
+`--effort` still documents `low, medium, high, xhigh, max`. New fields, none
+read by the parser:
+
+- `system`/`init` lists a fifth built-in plugin, `cc-plugin-privacy`, adding
+  no tool, and gained `ultrathink_available` and `ultrathink_typed_raises`.
+- `result` gained `model_usage_since_last_result` (the `modelUsage` shape
+  again) and `credential_expires_at`; `modelUsage` entries split cache
+  creation into `cacheCreationEphemeral5mInputTokens` and
+  `cacheCreationEphemeral1hInputTokens`.
+- `rate_limit_event` dropped `unifiedWindows` and `overageDisabledReason` and
+  gained `overageInUse` and `overageResetsAt`. The parser ignores the line.

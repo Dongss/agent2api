@@ -46,9 +46,10 @@ type Usage struct {
 	CacheReadInputTokens     int
 	CacheCreationInputTokens int
 	// ReasoningOutputTokens is the part of OutputTokens the backend spent on
-	// reasoning it did not show. Only some CLIs report it; the rest leave it
-	// zero, which is indistinguishable from "reasoned about nothing" and is the
-	// honest answer either way.
+	// reasoning, whether or not that reasoning reached the caller as thinking
+	// text. Only some CLIs report it; the rest leave it zero, which is
+	// indistinguishable from "reasoned about nothing" and is the honest answer
+	// either way.
 	ReasoningOutputTokens int
 }
 

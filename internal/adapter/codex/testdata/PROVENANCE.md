@@ -1,7 +1,7 @@
 # Where these fixtures come from
 
 All three files are recordings of real `codex exec --json` runs, verified
-against codex-cli `0.163.0` with the argv the adapter itself builds:
+against codex-cli `0.169.0` with the argv the adapter itself builds:
 
 ```sh
 codex exec --json --sandbox read-only --skip-git-repo-check --cd <scratch> \
@@ -113,8 +113,8 @@ than in full — a 632-byte paragraph inline would bury what the test is for.
 ## History
 
 Recorded on 0.149.1, replacing files from 0.148.0; re-checked on 0.150.1,
-0.151.0, 0.154.0, 0.155.1, 0.161.0 and 0.163.0. No shape has changed across
-any of them.
+0.151.0, 0.154.0, 0.155.1, 0.161.0, 0.163.0 and 0.169.0. No shape has changed
+across any of them.
 
 Two things about that list are worth keeping.
 
@@ -188,3 +188,23 @@ provider matched `reasoning.jsonl` key for key, `usage` included, with the new
 argv. The failure path was observed as a quota failure again — one model's
 quota ran out during the re-check — and matched `quota-exceeded.jsonl`:
 top-level `error` per retry, `turn.failed`, no `turn.completed`.
+
+0.169.0 (2026-11-16) was checked on all three paths with the argv above,
+through the third-party provider: a plain answer matched `simple.jsonl`, a
+`reasoning` item ahead of the message matched `reasoning.jsonl` (`usage` key
+for key), and an unknown `--model` matched `quota-exceeded.jsonl`'s failure
+lines — a top-level `error` per retry, then `turn.failed` with no
+`turn.completed`. Whether a `reasoning` item appears depends on the model: the
+provider's default model spent reasoning tokens and sent none, another sent
+one. The startup warning now arrives twice, as two `item.completed`/`error`
+items with the same text.
+
+The tool switches still hold. All nine `toolFeatures` are still listed by
+`codex features list`, and the same stub-provider capture as 0.163.0 shows a
+third-party model offered `request_user_input` alone. The list includes
+features that sound like tools and are on by default — `image_generation`,
+`skill_search`, `tool_suggest`, `browser_use` — but none reached that request.
+What it does carry is the skills list from the user's skill roots, as
+instructions with no tool to read a skill by. A prompt inviting a tool ("list
+your directory and print the first line of /etc/hosts") came back as a plain
+answer through the gateway.
