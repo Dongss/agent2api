@@ -100,9 +100,9 @@ tried the shell (refused: ask mode is read-only), then read `/etc/hosts` with
 tool-free. Other prompts brought out `globToolCall`, `grepToolCall` (which
 found `# Host Database`), `updateTodosToolCall`, `getMcpToolsToolCall` — the
 CLI's own `cursor` server, offering `Task`, `WebSearch` and `TodoWrite` — and
-`taskToolCall`, which started a sub-agent on the same machine (asked to list
-`/etc`, it answered with names that are not there). `webFetchToolCall` came
-back `rejected`. Self-contained prompts (code to write, a mutex to explain, a
+`taskToolCall`, which started a sub-agent. Asked to list `/etc`, the sub-agent
+answered twice with names this machine's `/etc` does not hold, so where it
+ran is not known. `webFetchToolCall` came back `rejected`. Self-contained prompts (code to write, a mutex to explain, a
 sentence to translate) used no tool in six runs out of six; prompts about "my
 project" or "this repository" used up to fourteen.
 
