@@ -2,6 +2,7 @@ package cursor
 
 import (
 	"encoding/json"
+	"slices"
 	"strings"
 
 	"github.com/Dongss/agent2api/internal/ir"
@@ -26,6 +27,10 @@ type streamLine struct {
 	// type=thinking,subtype=delta
 	Text string `json:"text"`
 
+	// type=tool_call: one key naming the kind of call ("readToolCall",
+	// "taskToolCall", ...) beside bookkeeping keys. Only the names are read.
+	ToolCall map[string]json.RawMessage `json:"tool_call"`
+
 	// type=result
 	IsError bool   `json:"is_error"`
 	Result  string `json:"result"`
@@ -46,6 +51,10 @@ type usage struct {
 	OutputTokens     int `json:"outputTokens"`
 	CacheReadTokens  int `json:"cacheReadTokens"`
 	CacheWriteTokens int `json:"cacheWriteTokens"`
+	// The part of outputTokens spent thinking. 2026.11.13-eacade1 is the
+	// first release seen reporting it; 2026.10.16-e3cb207 did not, and its
+	// absence reads as zero.
+	ReasoningTokens int `json:"reasoningTokens"`
 }
 
 func (u *usage) toIR() *ir.Usage {
@@ -57,6 +66,7 @@ func (u *usage) toIR() *ir.Usage {
 		OutputTokens:             u.OutputTokens,
 		CacheReadInputTokens:     u.CacheReadTokens,
 		CacheCreationInputTokens: u.CacheWriteTokens,
+		ReasoningOutputTokens:    u.ReasoningTokens,
 	}
 }
 
@@ -91,11 +101,11 @@ func (l *streamLine) note() string {
 
 // parser converts stream-json lines into IR events. One parser per run.
 //
-// Beyond translation it has one job: cursor-agent emits its answer twice. Under
-// --stream-partial-output each token is an "assistant" line, and the CLI also
-// flushes everything since the last boundary (tool call, retry, result) as one
-// more such line just before it. Concatenating blindly would duplicate the
-// answer.
+// Beyond translation and refusing tool calls (see refuseTool), it has one job:
+// cursor-agent emits its answer twice. Under --stream-partial-output each
+// token is an "assistant" line, and the CLI also flushes everything since the
+// last boundary (tool call, retry, result) as one more such line just before
+// it. Concatenating blindly would duplicate the answer.
 //
 // The flush is identified, not guessed: it repeats the accumulated text and
 // always precedes a boundary. So a line matching the accumulation is held for
@@ -146,7 +156,10 @@ func (p *parser) Line(b []byte) error {
 		}
 	case "assistant":
 		p.assistant(l.assistantText())
-	case "tool_call", "retry", "connection", "interaction_query":
+	case "tool_call":
+		// Stop the CLI before the tool's result can reach an answer.
+		return p.refuseTool(l.ToolCall)
+	case "retry", "connection", "interaction_query":
 		// A boundary: the CLI flushed right before it, so anything held back
 		// was that flush.
 		p.boundary()
@@ -188,6 +201,50 @@ func (p *parser) release() {
 func (p *parser) boundary() {
 	p.held, p.hasHeld = "", false
 	p.pending = ""
+}
+
+// refuseTool fails the run on a tool call, at the line that starts it.
+//
+// `--mode ask` makes cursor-agent read-only, not tool-free: it still reads
+// any file on the disk, greps and globs, starts sub-agents with `Task`, and
+// looks up more tools through `getMcpTools`. No flag takes them away, and the
+// permissions file in the scratch directory only denies some of them, so this
+// is the guarantee, as `item` is for codex. It refuses every call rather than
+// a list of dangerous ones: the next tool cursor ships will arrive as a key
+// nobody listed.
+//
+// The model often says what it is about to do first, so a streamed answer may
+// already carry that sentence; the tool's output never follows it. A line held
+// back as a possible flush was one — the CLI flushes before a tool call — so
+// it is dropped, not released.
+func (p *parser) refuseTool(call map[string]json.RawMessage) error {
+	p.boundary()
+	// The arguments are left out of the detail: the model wrote them, often
+	// from the caller's own words.
+	p.err = &ir.Error{
+		Code: ir.CodeUpstreamError,
+		Message: "the Cursor CLI started using a tool, which agent2api does not allow, and was stopped; " +
+			"it reaches for one when a prompt asks about files, a project or the web, " +
+			"which this backend cannot see — put the content in the request instead",
+		Detail: "tool call: " + toolKind(call),
+	}
+	return p.err
+}
+
+// toolKind names a tool call by its "...ToolCall" key, the only part of the
+// line that says what kind of call it is.
+func toolKind(call map[string]json.RawMessage) string {
+	var kinds []string
+	for k := range call {
+		if strings.HasSuffix(k, "ToolCall") {
+			kinds = append(kinds, k)
+		}
+	}
+	if len(kinds) == 0 {
+		return "unrecognised"
+	}
+	slices.Sort(kinds)
+	return strings.Join(kinds, ", ")
 }
 
 func (p *parser) write(text string) {

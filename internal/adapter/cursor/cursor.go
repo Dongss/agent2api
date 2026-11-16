@@ -4,6 +4,21 @@
 // The CLI is launched in headless print mode, in read-only ask mode, in an
 // empty scratch directory with a sanitized environment: agent2api uses it as a
 // plain LLM, never as an agent that touches the machine.
+//
+// Read-only is not tool-free. In ask mode the model still reads any file on
+// the disk, greps and globs outside the scratch directory, starts sub-agents
+// with `Task`, and looks up more tools with `getMcpTools`; asked for the first
+// lines of /etc/hosts, it read them and put them in the answer. No flag takes
+// the tools away, so two layers stand in for one:
+//
+//   - a permissions file in the scratch directory denies what cursor's
+//     permission tokens can name (see deniedPermissions), which narrows what
+//     a call can do in the moment before the CLI is stopped;
+//   - the parser fails the run at the first tool call and stops the CLI.
+//
+// The second is the guarantee, as it is for codex and Qwen Code: `Task` and
+// `getMcpTools` ran with the deny list in place, and no list anticipates the
+// next tool.
 package cursor
 
 import (
@@ -11,6 +26,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -39,6 +56,42 @@ var requiredFlags = []string{"--print", "--output-format"}
 // drift; the adapter keeps its own fallback because Options can be built
 // without going through the config layer at all.
 const DefaultMode = config.DefaultCursorMode
+
+// deniedPermissions go in the scratch directory's `.cursor/cli.json`, which
+// the CLI reads as the workspace's permissions on top of the user's own
+// `~/.cursor/cli-config.json`.
+//
+// Measured on 2026.11.13-eacade1: `Read(**)` is the entry that changes a run.
+// Without it the model read /etc/hosts and grepped it; with it the read came
+// back "Permission denied" and the grep found nothing. The shell and the
+// fetch were refused with or without the file, so `Shell`, `Write` and
+// `WebFetch` matter only if that stops being so. `Mcp` is there for the
+// servers in the user's `~/.cursor/mcp.json`; no run reached one, and
+// `--approve-mcps` is never passed.
+var deniedPermissions = []string{"Read(**)", "Write(**)", "Shell(*)", "WebFetch(*)", "Mcp(*:*)"}
+
+// writePermissions puts the deny list where the CLI about to run in dir will
+// find it.
+func writePermissions(dir string) error {
+	var file struct {
+		Permissions struct {
+			Allow []string `json:"allow"`
+			Deny  []string `json:"deny"`
+		} `json:"permissions"`
+	}
+	file.Permissions.Allow = []string{}
+	file.Permissions.Deny = deniedPermissions
+
+	body, err := json.Marshal(file)
+	if err != nil {
+		return err
+	}
+	conf := filepath.Join(dir, ".cursor")
+	if err := os.MkdirAll(conf, 0o700); err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(conf, "cli.json"), body, 0o600)
+}
 
 // MaxPromptBytes caps the rendered transcript. Unlike the other CLIs,
 // cursor-agent takes its prompt as a command-line argument, and Linux refuses a
@@ -144,6 +197,10 @@ func (a *Adapter) Run(ctx context.Context, req ir.Request) (<-chan ir.Event, err
 	dir, cleanup, err := runner.ScratchDir(runner.ExpandPath(a.opts.ScratchRoot), "agent2api-cursor-")
 	if err != nil {
 		return nil, ir.Errorf(ir.CodeInternal, "cannot create a scratch directory: %v", err)
+	}
+	if err := writePermissions(dir); err != nil {
+		cleanup()
+		return nil, ir.Errorf(ir.CodeInternal, "cannot write the permissions that deny the CLI's tools: %v", err)
 	}
 
 	args := a.buildArgs(caps, req, text)

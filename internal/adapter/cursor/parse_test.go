@@ -9,7 +9,9 @@ import (
 	"github.com/Dongss/agent2api/internal/ir"
 )
 
-// replay feeds lines through a parser and returns everything it emitted.
+// replay feeds lines through a parser and returns everything it emitted. A
+// line the parser refuses ends the replay there, as it ends the run: the
+// runner stops the CLI and hands the error to Finish.
 func replay(t *testing.T, lines []string, runErr error) []ir.Event {
 	t.Helper()
 	var got []ir.Event
@@ -22,7 +24,8 @@ func replay(t *testing.T, lines []string, runErr error) []ir.Event {
 			continue
 		}
 		if err := p.Line([]byte(line)); err != nil {
-			t.Fatalf("parser rejected a line: %v", err)
+			runErr = err
+			break
 		}
 	}
 	p.Finish(runErr)
@@ -84,7 +87,7 @@ func TestPartialOutputTranscript(t *testing.T) {
 	if strings.Count(text, "Hello from the fixture.") != 1 {
 		t.Errorf("the flush line duplicated the answer: %q", text)
 	}
-	if !strings.HasPrefix(thinking, "I will reply with exactly") {
+	if !strings.HasPrefix(thinking, "The user wants me to reply with exactly") {
 		t.Errorf("thinking = %q, want the reasoning deltas surfaced", thinking)
 	}
 	if done == nil {
@@ -99,10 +102,12 @@ func TestPartialOutputTranscript(t *testing.T) {
 	if done.Usage == nil {
 		t.Fatal("no usage on the done event")
 	}
-	// The CLI spells these inputTokens/outputTokens/cacheReadTokens; getting the
-	// mapping wrong is invisible without pinning the numbers.
-	if u := done.Usage; u.InputTokens != 13196 || u.OutputTokens != 87 ||
-		u.CacheReadInputTokens != 2560 || u.CacheCreationInputTokens != 0 {
+	// The CLI spells these inputTokens/outputTokens/cacheReadTokens/
+	// reasoningTokens; getting the mapping wrong is invisible without pinning
+	// the numbers.
+	if u := done.Usage; u.InputTokens != 11464 || u.OutputTokens != 109 ||
+		u.CacheReadInputTokens != 3328 || u.CacheCreationInputTokens != 0 ||
+		u.ReasoningOutputTokens != 104 {
 		t.Errorf("usage = %+v", u)
 	}
 
@@ -137,8 +142,8 @@ func TestChunkedTranscript(t *testing.T) {
 	if done == nil || done.Model != "Auto" {
 		t.Fatalf("done = %+v", done)
 	}
-	if u := done.Usage; u == nil || u.InputTokens != 15242 || u.OutputTokens != 225 ||
-		u.CacheReadInputTokens != 512 {
+	if u := done.Usage; u == nil || u.InputTokens != 10444 || u.OutputTokens != 170 ||
+		u.CacheReadInputTokens != 4352 || u.ReasoningOutputTokens != 167 {
 		t.Errorf("usage = %+v", done.Usage)
 	}
 	// One line in, one delta out: nothing to deduplicate here.
@@ -168,10 +173,11 @@ func TestFlushDeduplication(t *testing.T) {
 	// Text identical to what came before, but after a boundary: the CLI reset
 	// its own buffer there, so this is a fresh chunk and dropping it would
 	// silently truncate the answer. No real run produced this, which is why it
-	// is stated by hand rather than recorded.
+	// is stated by hand rather than recorded. The boundary is a retry: a tool
+	// call is one too, but it ends the run (see TestToolCallStopsTheRun).
 	lines = []string{
 		`{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"ab"}]}}`,
-		`{"type":"tool_call","subtype":"started","call_id":"c1"}`,
+		`{"type":"retry"}`,
 		`{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"ab"}]}}`,
 		`{"type":"result","subtype":"success","is_error":false,"result":"abab"}`,
 	}
@@ -280,6 +286,78 @@ func TestUnknownLinesAreIgnored(t *testing.T) {
 	}
 	if text != "ok" || done == nil {
 		t.Errorf("text = %q, done = %+v", text, done)
+	}
+}
+
+// TestToolCallStopsTheRun follows the order 2026.11.13-eacade1 produced in ask
+// mode when a prompt asked for a file: the announcement streamed token by
+// token, its flush, the call started and completed, then an answer built from
+// what the tool returned. The kinds are the ones those runs showed, plus one
+// nobody has seen yet, which is why the parser refuses every call rather than
+// a list.
+//
+// Constructed rather than recorded: a recording would mean letting the CLI
+// use its tools, and the output carried files from the recording machine.
+func TestToolCallStopsTheRun(t *testing.T) {
+	for _, kind := range []string{"readToolCall", "grepToolCall", "globToolCall", "shellToolCall",
+		"taskToolCall", "getMcpToolsToolCall", "updateTodosToolCall", "webFetchToolCall", "someFutureToolCall"} {
+		t.Run(kind, func(t *testing.T) {
+			lines := []string{
+				`{"type":"system","subtype":"init","model":"Auto"}`,
+				`{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Reading"}]}}`,
+				`{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":" it now."}]}}`,
+				`{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Reading it now."}]}}`,
+				`{"type":"tool_call","subtype":"started","call_id":"c1","tool_call":{"` + kind +
+					`":{"args":{"path":"~/.ssh/id_ed25519"}},"toolCallId":"c1"}}`,
+				`{"type":"tool_call","subtype":"completed","call_id":"c1","tool_call":{"` + kind +
+					`":{"args":{"path":"~/.ssh/id_ed25519"},"result":{"success":{"content":"PRIVATE KEY"}}},"toolCallId":"c1"}}`,
+				`{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"The file holds PRIVATE KEY"}]}}`,
+				`{"type":"result","subtype":"success","is_error":false,"result":"Reading it now.The file holds PRIVATE KEY",` +
+					`"usage":{"inputTokens":1,"outputTokens":1}}`,
+			}
+			text, _, done, failure := collect(replay(t, lines, nil))
+			if done != nil {
+				t.Error("a run that used a tool must not be reported as done")
+			}
+			if strings.Contains(text, "PRIVATE KEY") {
+				t.Errorf("the tool's output reached the caller: %q", text)
+			}
+			// The announcement was streamed before the call; its flush was not
+			// a second copy of it.
+			if text != "Reading it now." {
+				t.Errorf("text = %q, want the announcement once", text)
+			}
+			if failure == nil {
+				t.Fatal("expected an error event")
+			}
+			if failure.Code != ir.CodeUpstreamError {
+				t.Errorf("code = %q, want upstream_error", failure.Code)
+			}
+			if !strings.Contains(failure.Detail, kind) {
+				t.Errorf("the error does not name the tool: %+v", failure)
+			}
+			// The arguments are model-written, often from the caller's words.
+			if strings.Contains(failure.Message+failure.Detail, "id_ed25519") {
+				t.Errorf("the error repeats the tool call: %+v", failure)
+			}
+		})
+	}
+}
+
+// The refusal fires at the line that starts the call, so the runner stops the
+// CLI before the tool's result is even read.
+func TestToolCallIsRefusedWhenItStarts(t *testing.T) {
+	p := newParser(func(ir.Event) bool { return true })
+	err := p.Line([]byte(`{"type":"tool_call","subtype":"started","tool_call":{"readToolCall":{"args":{"path":"/etc/hosts"}}}}`))
+	if err == nil {
+		t.Fatal("a started tool call must stop the run")
+	}
+	// A call in a shape nobody has seen is still a call.
+	p = newParser(func(ir.Event) bool { return true })
+	if err := p.Line([]byte(`{"type":"tool_call","subtype":"started"}`)); err == nil {
+		t.Fatal("a tool call without a recognisable kind must stop the run too")
+	} else if !strings.Contains(ir.AsError(err).Detail, "unrecognised") {
+		t.Errorf("detail = %q", ir.AsError(err).Detail)
 	}
 }
 

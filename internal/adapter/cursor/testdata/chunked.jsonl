@@ -1,13 +1,22 @@
 {"type":"system","subtype":"init","apiKeySource":"login","cwd":"/tmp/agent2api-cursor-2f8c1d","session_id":"00000000-0000-4000-8000-000000000001","model":"Auto","permissionMode":"default"}
 {"type":"user","message":{"role":"user","content":[{"type":"text","text":"Reply with exactly: Same chunk."}]},"session_id":"00000000-0000-4000-8000-000000000001"}
-{"type":"thinking","subtype":"delta","text":"The response will begin","session_id":"00000000-0000-4000-8000-000000000001","timestamp_ms":1787220017557}
-{"type":"thinking","subtype":"delta","text":" with \"REDACTED\" and contain","session_id":"00000000-0000-4000-8000-000000000001","timestamp_ms":1787220017827}
-{"type":"thinking","subtype":"delta","text":" exactly \"Same chunk.\"","session_id":"00000000-0000-4000-8000-000000000001","timestamp_ms":1787220018096}
-{"type":"thinking","subtype":"delta","text":"\n\nThe explicit instruction","session_id":"00000000-0000-4000-8000-000000000001","timestamp_ms":1787220020548}
-{"type":"thinking","subtype":"delta","text":" to reply with exactly","session_id":"00000000-0000-4000-8000-000000000001","timestamp_ms":1787220020549}
-{"type":"thinking","subtype":"delta","text":" \"Same chunk.\" takes","session_id":"00000000-0000-4000-8000-000000000001","timestamp_ms":1787220020549}
-{"type":"thinking","subtype":"delta","text":" precedence over the","session_id":"00000000-0000-4000-8000-000000000001","timestamp_ms":1787220020550}
-{"type":"thinking","subtype":"delta","text":" \"REDACTED\" greeting rule.","session_id":"00000000-0000-4000-8000-000000000001","timestamp_ms":1787220020550}
-{"type":"thinking","subtype":"completed","session_id":"00000000-0000-4000-8000-000000000001","timestamp_ms":1787220020550}
+{"type":"thinking","subtype":"delta","text":"The","session_id":"00000000-0000-4000-8000-000000000001","timestamp_ms":1794794750156}
+{"type":"thinking","subtype":"delta","text":" user","session_id":"00000000-0000-4000-8000-000000000001","timestamp_ms":1794794750162}
+{"type":"thinking","subtype":"delta","text":" wants","session_id":"00000000-0000-4000-8000-000000000001","timestamp_ms":1794794750163}
+{"type":"thinking","subtype":"delta","text":" me","session_id":"00000000-0000-4000-8000-000000000001","timestamp_ms":1794794750163}
+{"type":"thinking","subtype":"delta","text":" to","session_id":"00000000-0000-4000-8000-000000000001","timestamp_ms":1794794750199}
+{"type":"thinking","subtype":"delta","text":" reply","session_id":"00000000-0000-4000-8000-000000000001","timestamp_ms":1794794750238}
+{"type":"thinking","subtype":"delta","text":" with","session_id":"00000000-0000-4000-8000-000000000001","timestamp_ms":1794794750354}
+{"type":"thinking","subtype":"delta","text":" exactly","session_id":"00000000-0000-4000-8000-000000000001","timestamp_ms":1794794750422}
+{"type":"thinking","subtype":"delta","text":" \"Same","session_id":"00000000-0000-4000-8000-000000000001","timestamp_ms":1794794750572}
+{"type":"thinking","subtype":"delta","text":" chunk.\"","session_id":"00000000-0000-4000-8000-000000000001","timestamp_ms":1794794750671}
+{"type":"thinking","subtype":"delta","text":" I also","session_id":"00000000-0000-4000-8000-000000000001","timestamp_ms":1794794750816}
+{"type":"thinking","subtype":"delta","text":" have","session_id":"00000000-0000-4000-8000-000000000001","timestamp_ms":1794794750923}
+{"type":"thinking","subtype":"delta","text":" a","session_id":"00000000-0000-4000-8000-000000000001","timestamp_ms":1794794750995}
+{"type":"thinking","subtype":"delta","text":" user","session_id":"00000000-0000-4000-8000-000000000001","timestamp_ms":1794794751045}
+{"type":"thinking","subtype":"delta","text":" rule","session_id":"00000000-0000-4000-8000-000000000001","timestamp_ms":1794794751103}
+{"type":"thinking","subtype":"delta","text":" that","session_id":"00000000-0000-4000-8000-000000000001","timestamp_ms":1794794751204}
+{"type":"thinking","subtype":"delta","text":" says I should address the user as \"REDACTED\" at the beginning of my reply.\n\nSpecific instructions override general rules. I will reply with exactly \"Same chunk.\"","session_id":"00000000-0000-4000-8000-000000000001","timestamp_ms":1794794755298}
+{"type":"thinking","subtype":"completed","session_id":"00000000-0000-4000-8000-000000000001","timestamp_ms":1794794755299}
 {"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Same chunk."}]},"session_id":"00000000-0000-4000-8000-000000000001"}
-{"type":"result","subtype":"success","duration_ms":8326,"duration_api_ms":8326,"is_error":false,"result":"Same chunk.","session_id":"00000000-0000-4000-8000-000000000001","request_id":"00000000-0000-4000-8000-000000000002","usage":{"inputTokens":15242,"outputTokens":225,"cacheReadTokens":512,"cacheWriteTokens":0}}
+{"type":"result","subtype":"success","duration_ms":7997,"duration_api_ms":7997,"is_error":false,"result":"Same chunk.","session_id":"00000000-0000-4000-8000-000000000001","request_id":"00000000-0000-4000-8000-000000000002","usage":{"inputTokens":10444,"outputTokens":170,"cacheReadTokens":4352,"cacheWriteTokens":0,"reasoningTokens":167}}
